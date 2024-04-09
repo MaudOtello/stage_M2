@@ -1,0 +1,594 @@
+---
+title: "Description des données"
+author: "Mod"
+date: "2024-02-07"
+output: word_document
+---
+#Environnement de travail
+```{r}
+setwd("~/cours_r/Stage_M2")
+```
+
+```{r Packages}
+library(tidyverse) #pour toutes les fonctions associées
+library(sf) #pour la manipulation des couches shapefiles
+library(ggspatial) # scale bars and north arrows
+library(foreach) #lancer une action pour chacun de mes objets
+```
+
+#paracou_G
+Paraou 9ha sont les données que m'a transmis Giaccomo. On peut voir que son jeu de donnée a été dédoublé. On va donc sélectionner uniquement les première colonnes et nommer le jeu de donnée _paracou_G_. Comme on dispose déjà d'un numéro unique d'identification par individu on ne prendra pas la première colonne.
+```{r importation des données}
+paracou_9ha <- read.csv("~/cours_r/Stage_M2/understory_paracou_9ha_sp_20240126.csv")
+paracou_G <- paracou_9ha[,c(2:25)] #TreeID jusqu'à scientificName
+```
+
+Donnée G permets d'avoir la localisation des espèces d'intérêt. Et paracouDescription utiliser la colonne UTM pour pouvoir avoir les cartes.
+
+J'aimerai maintenant savoir c'est quoi les DBH les plus petit obtenue et le plus grand. Puis identifier le nombre d'espèces au total.
+
+```{r min,max, nb esp}
+min(paracou_G$DBH[paracou_G$DBH != 0], na.rm = TRUE)
+max(paracou_G$DBH, na.rm = T)
+
+length(unique(paracou_G$scientificName))
+```
+Il semble y avoir des erreurs de saisie car la première ligne nous indique des individus de DBH < 1. Or le décompte se faisait qu'à partir de 1cm.
+
+## Import des shapefiles 
+
+```{r importation shapefile}
+topo <- st_read("~/cours_r/Stage_M2/Cartographie/Topo4Levels.shp")
+Guyafor <- st_read("~/cours_r/Stage_M2/Cartographie/Guyafor.shp")
+Guyafor_plot <- st_read("~/cours_r/Stage_M2/Cartographie/GuyaforPlots.shp")
+#Isocline <- st_read("~/cours_r/Stage_M2/Cartographie/Isoligne_Paracou_1m.shp")
+```
+
+##Testing
+Maintenant qu'on a réussi à faire plot le shp il nous reste à essayer de faire une petite carte sympa.
+```{r}
+ggplot(topo) +
+  geom_sf(aes())
+```
+
+#Analyse exploiratoire 
+
+##DBH
+Voyons comment se répartie les DBH dans notre jeu de données.
+```{r paracou_G$DBH}
+#Analyse du jeu de données
+summary(paracou_G$DBH, na.rm = T)  
+
+# histogramme de grandeur
+paracou_G %>%
+ ggplot(aes( x = DBH)) +
+  geom_histogram(breaks = seq(10, 250, by = 1), fill = "blue", color = "black", alpha = 0.7, na.rm = T) +
+  labs(title = "Répartition des DBH", x = "DBH", y = "Fréquence")
+```
+
+###nuages des points
+```{r nuage de points}
+paracou_G %>%
+  count(DBH) %>%
+ ggplot(aes( x = DBH)) +
+  geom_point(position = "identity") +
+  labs(title = "Répartition des DBH", x = "DBH", y = "Fréquence")
+```
+Sans surprise la quantité d'individus comptabilisé se trouve à des DBH < 25cm. Les plantules prennent plus de place.
+
+##Family
+Regardons tout d'abord combien d'individus je dispose par famille. Est-ce qu'il y en a qui sortent du lot.
+```{r family}
+#Observons les chiffres
+paracou_G %>%
+  group_by(family) %>%
+  distinct() %>%
+  count()
+```
+
+On peut voir qu'il y a 11708 NA. Ce qui est remarquable. Mais également qu'il y a des familles sous représentés et d'autre sur représenté. Pour mettre en avant cela on va réaliser un graphe comprenant les 20familles les moins représenté. Et les familles ayant un nombre d'individus > 100. Les ordres de grandeurs ont été pris au hasard. 
+_En quoi les familles avec moins de 10 indv sont important à prendre en compte ?_
+	
+```{r family_plot}
+#20 familles les plus représenté
+paracou_G %>%
+  count(family, sort = T) %>% #sort trie par ordre décroissant
+  filter(!is.na(family)) %>%
+  head(20) %>%
+  ggplot(aes(x = reorder(family, -n), y = n))+ #afficher dans l'ordre décroissant
+  geom_bar(stat = "identity", fill = "#3e12d1", color = "black") +
+  theme_light() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  labs(title = "20 familles les plus occurentes", x = "Famille", y = "Occurence")
+```
+J'aimerai voir le nombre d'occurence par diamètre 
+```{r}
+paracou_G %>%
+  ggplot() %>%
+  geom_hist( aes(x= DBH))
+```
+
+Maintenant on change d'échelle et on va évaluer tout ça à partir des espèces.
+J'aimerai réaliser le même graphe avec les espèces et qu'il m'affiche les couleurs en fonction des familles.
+```{r espèces vs familles}
+paracou_G %>%
+  select(scientificName, family) %>%
+  count(scientificName, family, sort = TRUE) %>%
+  filter(!is.na(scientificName)) %>%
+  group_by(scientificName) %>%
+  head(20) %>%
+  ggplot(aes(x = reorder(scientificName, -n), y = n, fill = family))+ #organiser dans l'ordre décroissant
+  geom_bar(stat = "identity", color = "black") +
+  scale_fill_brewer(palette = "RdYlGn") +
+  theme_light() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + #avoir la légende des x à la verticale
+  labs(title = "Occurence des 20 espèces les plus fréquentes", x = "Famille", y = "Occurence")
+
+#Pour avoir l'occurence exacte et leur famille associée
+paracou_G %>%
+  select(scientificName, family) %>%
+  count(scientificName, family, sort = TRUE) %>%
+  filter(!is.na(scientificName)) %>%
+  group_by(scientificName) %>%
+  head(20)
+`````````
+On peut voir que sur les 20 espèces les plus représenté seulement 10 familles sortent du lot. La présence de _Oxandra asbeckii_ est sur-représenté. Certaine famille comme les _Sapotacées_ font partie des plus présente mais à l'échelle de l'espèce celà n'est pas visible.
+
+# Manipulation spatiale 
+L'objectif de cette partie est d'avoir un visuel sur notre parcelle.
+
+##Manipuler les données
+```{r données spatialisées}
+#tableau de donnée à coordonnée non-spatialisé rendre spatiale (donnée sf)
+paracou_G2 <- paracou_G %>%
+  filter (!is.na(Xutm)) %>%
+  st_as_sf(coords = c("Xutm", "Yutm"), crs = st_crs(2972)) 
+#crs = st_crs(2972) sert à préciser le SCR pour mon shp.
+#st_crs(2972) = RFGR95 donc j'ai le droit de le changer si le crs de départ est WGS 84 / UTM zone 22N 
+
+#attribution d'un CRS au lieu d'une re-projection
+st_crs(topo) <- st_crs(2972)
+
+#Intersection couche polygone à point (/!\ crs égaux & sens de fusion)
+paracou_topo <- st_intersection(paracou_G2, topo)
+```
+/!\ On a une perte d'observation du passage de Paracou_G > paracou_G2 > Paracou_topo. ça nous fait 231 puis 28 observations de perdues ! **pk ?** PAS DEDANS LES 2 COUCHES
+
+
+##Distribution spatiale des espèces
+La couche de tableau a été mis en shp ce qui va nous permettre de cartographier. A partir de ces espèces les plus représentées on va essayer de voir quels sont leurs distributions.
+### espèce par espèce
+
+```{r distribution par espèce}
+#_Oxandra asbeckii_
+paracou_topo %>%
+  filter(scientificName == "Oxandra asbeckii") %>%
+  select(scientificName, TopoTypeFr) %>%
+  ggplot() +
+  geom_sf(aes(color = TopoTypeFr)) +
+  theme_light() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  labs(title = "Distribution spatiale de Oxandra asbckii en fonction de la topographie", color = "Topographie")
+
+#_Qualea rosea_
+paracou_topo %>%
+  filter(scientificName == "Qualea rosea") %>%
+  select(scientificName, TopoTypeFr) %>%
+  ggplot() +
+  geom_sf(aes(color = TopoTypeFr)) +
+  theme_light() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  labs(title = "Distribution spatiale de Qualea rosea en fonction de la topographie", color = "Topographie")
+
+#_Lecythis persistens_
+paracou_topo %>%
+  filter(scientificName == "Lecythis persisten") %>%
+  select(scientificName, TopoTypeFr) %>%
+  ggplot() +
+  geom_sf(aes(color = TopoTypeFr)) +
+  theme_light() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  labs(title = "Distribution spatiale de Lecythis persisten en fonction de la topographie", color = "Topographie")
+
+#_Iryanthera sagotiana_
+paracou_topo %>%
+  filter(scientificName == "Iryanthera sagotiana") %>%
+  select(scientificName, TopoTypeFr) %>%
+  ggplot() +
+  geom_sf(aes(color = TopoTypeFr)) +
+  theme_light() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  labs(title = "Distribution spatiale de Iryanthera sagotiana en fonction de la topographie", color = "Topographie")
+
+#_Anaxagorea dolichocarpa_
+paracou_topo %>%
+  filter(scientificName == "Anaxagorea dolichocarpa") %>%
+  select(scientificName, TopoTypeFr) %>%
+  ggplot() +
+  geom_sf(aes(color = TopoTypeFr)) +
+  theme_light() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  labs(title = "Distribution spatiale de Anaxagorea dolichocarpa en fonction de la topographie", color = "Topographie")
+```
+
+##Spatialisation diamétrique selon le DBH
+
+D'après ces espèces les plus abondantes on va réaliser un graphique représentant la distribution des plantules et arbres.
+
+```{r distribution DBH}
+paracou_topo %>%
+  filter(scientificName == "Anaxagorea dolichocarpa") %>%
+  select(scientificName, DBH) %>%
+  ggplot() +
+  geom_sf(aes(color = DBH)) +
+  theme_light() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  labs(title = "Distribution spatiale de Anaxagorea dolichocarpa en fonction du DBH", color = "DBH en cm")
+```
+Ce n'est pas très visible avec les couleurs la répartition des classes de grandeur. Il faudrait donc avoir une catégorisation avec une croix pour les classse > 10 un point rouge pour les grands que l'on suppose parents.
+
+J'aimerai réaliser l'ensemble des cartes pour les 100 espèces les plus abondantes.
+
+```{r boucle DBH}
+#faire une liste des 40 plus abondantes espèces
+esp_100 <- paracou_topo %>%
+  select(scientificName) %>%
+  count(scientificName, sort = TRUE) %>%
+  filter(!is.na(scientificName)) %>%
+  group_by(scientificName) %>%
+  head(100) %>%
+  pull(scientificName)
+
+#objet dans mon environnement
+cartes_G <- list()
+
+for(k in 1:length(esp_100)) {
+  cartes_G[[k]] <- paracou_topo %>%
+    filter(scientificName == esp_100[k]) %>% #donne la position dans le vecteur
+    select(scientificName, DBH) %>%
+   ggplot() +
+    geom_sf(aes(color = DBH)) +
+    scale_color_gradient(low = "blue", high = "red") +
+    theme_light() +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+    labs(title = paste("Distribution spatiale de", esp_100[[k]], "en fonction du DBH"), color = "DBH", fill = "Topographie")
+
+}
+
+for(i in 1:length(cartes_G)){
+cartes_G[[i]] %>% plot
+}
+```
+
+
+##Topo & DBH
+Il faut que j'arrive à lui dire de m'afficher la topographie que de la parcelle 16.
+```{r topo_P16}
+topo %>%
+  select(TopoTypeFr, Plot) %>%
+  filter(Plot == 16) %>%
+  ggplot() +
+  geom_sf(aes(fill = TopoTypeFr)) +
+  scale_fill_manual(values = c("#e8d6c7","#efbb91","#eba166","#d67d35")) +
+  annotation_scale(location = "bl", width_hint = 0.4) +
+  annotation_north_arrow(location = "tr", which_north = "true", 
+        pad_x = unit(0.0, "in"), pad_y = unit(0.1, "in"),
+        style = north_arrow_fancy_orienteering)
+```
+Il me faut faire apparaitre une graduation de couleur : 
+
+```{r graduation de couleur}
+paracou_topo %>%
+  filter(scientificName == "Oxandra asbeckii") %>%
+  filter(DBH > 5) %>%
+  select(scientificName, DBH) %>%
+  ggplot() +
+  geom_sf(aes(color = DBH)) +
+  scale_color_gradient(low = "blue", high = "red") +
+  theme_light() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  labs(title = "Distribution spatiale de Oxandra asbckii en fonction du DBH", color = "DBH", fill = "Topographie")
+```
+
+On pourrait maintenant décidé de superposer la couche liée à la topographie.
+
+```{r topo & DBH}
+#_Oxandra asbeckii_
+paracou_topo %>%
+  filter(scientificName == "Oxandra asbeckii") %>%                              #sélection de l'espèce d'intérêt
+  select(scientificName, DBH) %>%
+  ggplot() +
+  geom_sf(data = filter(topo, topo$Plot == 16),
+          aes(fill = TopoTypeFr)) +                                             #affichage de la couche topo
+  geom_sf(aes(color = DBH)) +                                                   #affichage de la couche DBH
+  scale_color_gradient(low = "#3e12d1", high = "red") +
+  scale_fill_manual(values = c("#e8d6c7","#efbb91","#eba166","#d67d35")) +      #couleur de la topo
+  theme_light() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  labs(title = "Distribution spatiale de Oxandra asbckii en fonction du DBH", color = "DBH", fill = "Topographie") +
+  coord_sf(xlim = c(285306.6,285677.2), ylim = c(581257.8,581627.3))            #zoom sur les 9ha
+
+##_Qualea rosea_
+paracou_topo %>%
+  filter(scientificName == "Qualea rosea") %>%
+  filter(DBH < 30 ) %>%
+  select(scientificName, DBH) %>%
+  ggplot() +
+  geom_sf(data = filter(topo, topo$Plot == 16),
+          aes(fill = TopoTypeFr)) +
+  geom_sf(aes(color = DBH)) +
+  scale_color_gradient(low = "#3e12d1", high = "red") +
+  scale_fill_manual(values = c("#e8d6c7","#efbb91","#eba166","#d67d35")) +
+  theme_light() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  labs(title = "Distribution spatiale de Qualea rosea en fonction du DBH", color = "DBH", fill = "Topographie") +
+  coord_sf(xlim = c(285306.6,285677.2), ylim = c(581257.8,581627.3)) +
+  annotation_scale(location = "bl", width_hint = 0.4) +                         #échelle
+  annotation_north_arrow(location = "tr", which_north = "true",                 #flèche du nord
+        pad_x = unit(0.0, "in"), pad_y = unit(0.1, "in"),
+        style = north_arrow_fancy_orienteering)
+
+#Dicorynia guianensis
+paracou_topo %>%
+  filter(scientificName == "Dicorynia guianensis") %>%
+  filter(DBH < 30 ) %>%
+  select(scientificName, DBH) %>%
+  ggplot() +
+  geom_sf(data = filter(topo, topo$Plot == 16),
+          aes(fill = TopoTypeFr)) +
+  geom_sf(aes(color = DBH)) +
+  scale_color_gradient(low = "#3e12d1", high = "red") +
+  scale_fill_manual(values = c("#e8d6c7","#efbb91","#eba166","#d67d35")) +
+  theme_light() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  labs(title = "Distribution spatiale de Dicorynia guianensis en fonction du DBH", color = "DBH", fill = "Topographie") +
+  coord_sf(xlim = c(285306.6,285677.2), ylim = c(581257.8,581627.3)) +
+  annotation_scale(location = "bl", width_hint = 0.4) +                         #échelle
+  annotation_north_arrow(location = "tr", which_north = "true",                 #flèche du nord
+        pad_x = unit(0.0, "in"), pad_y = unit(0.1, "in"),
+        style = north_arrow_fancy_orienteering)
+
+#Anaxagorea dolichoscarpa **Erreur d'écriture**
+paracou_topo %>%
+  filter(scientificName == "Anaxagorea dolichocarpa") %>%
+  filter(DBH < 30 ) %>%
+  select(scientificName, DBH) %>%
+  ggplot() +
+  geom_sf(data = filter(topo, topo$Plot == 16),
+          aes(fill = TopoTypeFr)) +
+  geom_sf(aes(color = DBH)) +
+  scale_color_gradient(low = "#3e12d1", high = "red") +
+  scale_fill_manual(values = c("#e8d6c7","#efbb91","#eba166","#d67d35")) +
+  theme_light() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  labs(title = "Distribution spatiale de Anaxagorea dolichocarpa en fonction du DBH", color = "DBH", fill = "Topographie") +
+  coord_sf(xlim = c(285306.6,285677.2), ylim = c(581257.8,581627.3)) +
+  annotation_scale(location = "bl", width_hint = 0.4) +                         #échelle
+  annotation_north_arrow(location = "tr", which_north = "true",                 #flèche du nord
+        pad_x = unit(0.0, "in"), pad_y = unit(0.1, "in"),
+        style = north_arrow_fancy_orienteering)
+
+#Guarea costata
+paracou_topo %>%
+  filter(scientificName == "Guarea costata") %>%
+  filter(DBH < 30 ) %>%
+  select(scientificName, DBH) %>%
+  ggplot() +
+  geom_sf(data = filter(topo, topo$Plot == 16),
+          aes(fill = TopoTypeFr)) +
+  geom_sf(aes(color = DBH)) +
+  scale_color_gradient(low = "#3e12d1", high = "red") +
+  scale_fill_manual(values = c("#e8d6c7","#efbb91","#eba166","#d67d35")) +
+  theme_light() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  labs(title = "Distribution spatiale de Guarea costata en fonction du DBH", color = "DBH", fill = "Topographie") +
+  coord_sf(xlim = c(285306.6,285677.2), ylim = c(581257.8,581627.3)) +
+  annotation_scale(location = "bl", width_hint = 0.4) +                         #échelle
+  annotation_north_arrow(location = "tr", which_north = "true",                 #flèche du nord
+        pad_x = unit(0.0, "in"), pad_y = unit(0.1, "in"),
+        style = north_arrow_fancy_orienteering)
+```
+Pour avoir les coordonnées limites qui ne sont pas celles affiché il faut demander à R : st_bbox(paracou_topo).
+
+
+##Automatisation du travail (boucle)
+J'aimerai qu'après m'avoir sélectionné les 40 plus grandes occurrences (listes) qu'il m'affiche comme au-dessus une carte.
+```{r esp_40}
+#liste des 40 espèces les plus abondantes
+esp_40 <- paracou_G %>%
+  select(scientificName) %>%
+  count(scientificName, sort = TRUE) %>%
+  filter(!is.na(scientificName)) %>%
+  group_by(scientificName) %>%
+  head(40) %>%
+  pull(scientificName)
+
+#Transformation en data.frame
+esp_40df <- as.data.frame(esp_40)
+
+#Exportation en .cvs
+# write.csv(esp_40df, file = "esp_40.csv", na = "NA") #pour éviter qu'il m'en crée à chaque fois que je lance le fichier
+```
+
+Pour l'affichage on va faire :
+```{r liste espèces}
+#faire une liste des 40 plus abondantes espèces
+esp_40 <- paracou_topo %>%
+  select(scientificName) %>%
+  count(scientificName, sort = TRUE) %>%
+  filter(!is.na(scientificName)) %>%
+  group_by(scientificName) %>%
+  head(40) %>%
+  pull(scientificName)
+
+#objet dans mon environnement
+cartes_G <- list()
+
+#foreach
+foreach (k = 1:length(esp_40)) %dopar% {
+  cartes_G[[k]] <- paracou_topo %>%
+    filter(scientificName == esp_40[[k]]) %>% #donne la position dans le vecteur
+    select(scientificName, DBH) %>%
+   ggplot() +
+    geom_sf(aes(color = DBH)) +
+    scale_color_gradient(low = "blue", high = "red") +
+    theme_light() +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+    labs(title = paste("Distribution spatiale de", esp_40[[k]], "en fonction du DBH"), color = "DBH", fill = "Topographie")
+return(cartes_G)
+}
+```
+
+
+```{r liste espèces}
+foreach (k = 1:length(esp_40)) %do% {
+  cartes_G[[k]] <- paracou_topo %>%
+    filter(scientificName == esp_40[[k]]) %>% #donne la position dans le vecteur
+    select(scientificName, DBH) %>%
+   ggplot() +
+    geom_sf(aes(color = DBH)) +
+    scale_color_gradient(low = "blue", high = "red") +
+    theme_light() +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+    labs(title = paste("Distribution spatiale de", esp_40[[k]], "en fonction du DBH"), color = "DBH", fill = "Topographie")
+return(cartes_G)
+}
+
+#visualisation de 2-3plots
+foreach(k = 1:4) %do% {
+  cartes_G2[[k]]
+}
+```
+
+
+```{r cartes selon espèces}
+#le graph correspondant à leur distribution
+paracou_topo %>%
+    filter(scientificName == esp_20) %>%
+    select(scientificName, TopoTypeFr) %>%
+  ggplot() +
+  geom_sf(aes(color = TopoTypeFr)) +
+  facet_wrap(vars(scientificName)) +
+  theme_light() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + 
+  theme(strip.background = element_rect(fill = "black")) +
+  labs(color = "Topographie") 
+```
+L’apperçu des distributions de ces espèces nous montre déjà que 
+
+```{r}
+paracou_topo %>%
+  select(scientificName)
+from {esp_20 in }
+```
+
+
+#DB_JUVENILES_final
+Correspond aux données de Thomas Gaquiert recueilli lors de sa thèse. Elles ont été récupéré avec Melaine. Les données sont receuilli par hauteur. On aimerait avoir un ordre d'idée de ce qu'il se passe dedans cette inventaire. Par facilitation de manipulation on va créer une colonne scientificName.
+```{r DB_Juvenils_final}
+# Importation
+DB_JUVENILES_final <- read.csv2("~/cours_r/Stage_M2/DB_JUVENILES_final.csv")
+
+# scientificName
+DB_JUVENILES_final <- DB_JUVENILES_final %>%
+  mutate(scientificName = paste(Genre, Espece, sep = " "))
+```
+
+Maintenant on va voir les extrêmes
+```{r description}
+##nombre d'espèces
+DB_JUVENILES_final %>%
+  filter(Foret == "Paracou") %>%
+  distinct(scientificName)
+
+##DBH_Max
+DB_JUVENILES_final %>%
+  filter(Foret == "Paracou") %>%
+  select(Hauteur..cm.)%>%
+  max()
+##DBH_Min
+DB_JUVENILES_final %>%
+  filter(Foret == "Paracou" &
+           !is.na(Hauteur..cm.) & Hauteur..cm. != 0) %>%
+  summarise(min_hauteur = min(Hauteur..cm., na.rm = TRUE))
+```
+
+#guyadiv_paracou
+C'est un extrait du jeu de donnée de Molino qui a fait des transectes de 20m de large sur 250m de long sur plusieurs parcelles de paracou. Ces données ne sont pas spatialisées.
+```{r guyadiv_paracou}
+guyadiv_paracou <- read.csv("~/cours_r/Stage_M2/guyadiv_paracou.csv", sep=";")
+```
+On peut voir que chaque indv possède deux prises de relevés. Nous n'utiliseront pas ce jeu de donnée.
+
+#2024JUVENILS
+Le jeu de donnée _2024Juveniles_ comprend des données de plusieurs analyses (INRAE, Dygépop, Bloc Sud). On peut voir que l'identification des individus se fait sur plusieurs colonnes on va donc y intégrer une colonne ScientificNames pour uniformiser tout ça.
+```{r importation donnée}
+Paracou_Juveniles <- read.csv("~/cours_r/Stage_M2/2024ParacouJuveniles(v2).csv", sep=";", comment.char="#")
+
+#Création d'une colonne scientificName
+Paracou_Juveniles <- Paracou_Juveniles %>%
+  mutate(scientificName = paste(Genus, Species, sep = " "))
+
+#Création d'une colonne DBH
+Paracou_Juveniles <- Paracou_Juveniles %>%
+  mutate(DBH = Circ/pi)
+```
+Dans ce jeu de donnée on détecte la présence d'erreur notablement de la colonne CirCorr qui ne comporte que des NA. A redemander à Gaelle les données correctes pour l'instant on fait sans.
+
+On va regarder par type de données les variables de bases (nombre d'espèces...).
+```{r description données}
+#INRAE
+##nombre d'espèces
+Paracou_Juveniles %>%
+  filter(Project == "ParacouRegeneration") %>%
+  distinct(scientificName)
+##DBH_Max
+Paracou_Juveniles %>%
+  filter(Project == "ParacouRegeneration") %>%
+  select(DBH)%>%
+  max()
+##DBH_Min
+Paracou_Juveniles %>%
+  filter(Project == "ParacouRegeneration" &
+           !is.na(DBH) & DBH != 0) %>%
+  summarise(min_DBH = min(DBH, na.rm = TRUE))
+##Parcelles
+Paracou_Juveniles %>%
+  filter(Project == "ParacouRegeneration") %>%
+  distinct(Plot)
+
+
+#Dygepop
+##nombre d'espèces
+Paracou_Juveniles %>%
+  filter(Project == "ParacouRecrutement") %>%
+  distinct(scientificName)
+##Max
+Paracou_Juveniles %>%
+  filter(Project == "ParacouRecrutement") %>%
+  select(DBH)%>%
+  max()
+##Min
+Paracou_Juveniles %>%
+  filter(Project == "ParacouRecrutement" &
+           !is.na(DBH) & DBH != 0) %>%
+  summarise(min_DBH = min(DBH, na.rm = TRUE))
+##Année
+Paracou_Juveniles %>%
+  filter(Project == "ParacouRecrutement") %>%
+  select(IdentYear)%>%
+  distinct()
+##Parcelles
+Paracou_Juveniles %>%
+  filter(Project == "ParacouRecrutement") %>%
+  select(Plot)%>%
+  distinct()
+```
+C'est quand même étrange que l'on ait un DBH maximum de 29.76cm de DBH dans des Juvéniles. Ce sont des cas extrêmes qui lors des premiers inventaires entraient dedans.
+
+On aimerait savoir si les données en UTM sont tous identiques ou non. Pour cela nous allons faire un code comme suit :
+Si 'UMT Y + UMT X + Census' sont identiques et que 'idtree' est différent alors affiche moi les lignes correspondantes.
+```{r UMT identique?}
+
+```
+

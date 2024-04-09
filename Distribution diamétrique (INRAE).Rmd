@@ -1,0 +1,106 @@
+---
+title: "Distribution diamétrique (INRAE)"
+output: word_document
+date: "2024-04-04"
+---
+Ce script est créé dans le but d'observer les distributions diamétriques des espèces que l'on va étudier dans la deuxième partie. La deuxième partie sera réalisé sur les données de l'INRAE qui comprend 29espèces d'intérêt.
+
+#Mise en place
+```{r environnement de travail}
+setwd("~/cours_r/Stage_M2")
+```
+
+
+```{r Packages}
+library(tidyverse) #pour toutes les fonctions associées (dplr, ggplot2,...)
+```
+Nous allons nous servir de l'inventaire floristique du projet ALT réalisé sur 5ha de la P16 à Paracou (Guyane fr). C'est un inventaire exhaustive des arbres à un diamètre à hauteur de poitrine (DBH) à partir de 1cm. Il a été réalisé à partir de 2018 sur 3ans.
+
+```{r importation des données}
+#ALT
+paracou_9ha <- read.csv("~/cours_r/Stage_M2/understory_paracou_9ha_sp_20240126.csv")
+paracou_G <- paracou_9ha[,c(2:25)] #TreeID jusqu'à scientificName car erreur
+
+#INRAE (Regeneration plot)
+Paracou_Juveniles <- read.csv("~/cours_r/Stage_M2/2024ParacouJuveniles(v2).csv", sep=";", comment.char="#")
+
+#Création d'une colonne scientificName
+Paracou_Juveniles <- Paracou_Juveniles %>%
+  mutate(scientificName = paste(Genus, Species, sep = " "))
+```
+
+Nous avons extraits la liste des espèces d'intérêt de l'INRAE.
+```{r liste espèces}
+INRAE <- Paracou_Juveniles %>%
+  filter(Project == "ParacouRegeneration") %>%
+  distinct(scientificName) %>%
+  pull()
+```
+
+#Distribution simple
+```{r}
+#Création de l'objet comprenant l'ensemble des graphes
+INRAE_c <- list()
+
+#Création de la boucle
+for(k in 1:length(INRAE)) {
+ plot.data <-  paracou_G %>%
+    filter (scientificName == INRAE[[k]]) %>%
+    group_by(DBH) %>% 
+    arrange (DBH) %>% 
+    ggplot(aes (x = DBH)) +
+    geom_histogram(breaks = seq(1, 100, by = 1 ),fill = "forestgreen", color = "black") + #début à 1
+    theme_light() +
+    labs(x = "DBH", y = "Occurrences", title = paste("Distribution diamétrique de", INRAE[k]))
+ #ajout du graphique à la liste
+ INRAE_c[[k]] <- plot.data
+}
+
+#Affichage des graphes contenus dans la liste
+print(INRAE_c)
+```
+De visuel, les distributions diamétrique d'une majorité d'entre elles sont exploitable. Nous nottons que les _Symphonia spp._ ainsi que _Eperua grandiflora_ et _Ind_ (indéterminé) n'ont pas de correspondance dans notre jeu de donnée et donc pas de données associée. 
+Parmis les faibles occurences dans les distributions nous avons : 
+* [0;10] _Goupia Glabra_, _Symphonia globulifera_, _Moronobea coccinea_ (4), _Didymlipanaw decaphyllus_, _Carapa surinamensis_, _Virola surinamensis_ (3), _Andira coriacea_ (5), _Sterculia speciosa_, _Platonia insignis_
+* [10;30]  _Recordoxylon speciosum_, _Eperua falcata_, _Jacaranda copaia_
+
+Finalement dans la liste des 29 il nous reste 21 espèces où l'on pourrait potentiellement ressortir quelque chose de bien. NOus allons retirer dèsaprésent les espèces avec trop peu de relevés.
+```{r retrait espèces faible}
+#Retrait de la liste des espèces non-utilisable
+not <- c("Moronobea coccinea","Virola surinamensis", "Andira coriacea","Eperua grandiflora","Symphonia sp.3", "Symphonia sp.4", "Symphonia sp.2","Indet.Indet. Indet.")
+
+INRAE_2 <- setdiff(INRAE, not)
+```
+
+
+#Cumulative distribution function
+La cumulative distribution est une fonction de probabilité, je ne sais plus tout s'est effacé.
+```{r cdf}
+#Création de la liste
+INRAE_cdf <- list()
+
+#Création des courbes
+for(k in 1:length (INRAE_2)) {
+  plot.cdf <- paracou_G %>%
+    filter(scientificName == INRAE_2[[k]]) %>%
+    select(DBH) %>%
+    na.omit() %>%
+    mutate(DBH = sort(DBH),
+         ord = order(DBH),
+         cdf = 1 - (ord / max(ord))) %>%
+    ggplot(aes(x = log(DBH), y = cdf)) +
+    geom_point() +
+    labs(x = "log(DBH)", y = "Probabilité", title = paste("Cumulative distribution de", INRAE_2[k]))
+#ajout du graphique à la liste  
+  INRAE_cdf[[k]] <- plot.cdf
+}
+
+#Affichage des graphes
+print(INRAE_cdf)
+```
+Maintenant que l'on dispose du tracé de ces courbes nous allons réaliser une comparaison de cou
+
+D'après la comparaison des espèces que nous avais données Molino nous avons les espèces :
+
+#Présence d'adulte
+Nous aimerions faire un tableau qui indique si oui ou non, les espèces présentent des individus "adultes". Dans le cas où c'est non nous irons voir au niveau de leur autécologie ce qu'il est dit.

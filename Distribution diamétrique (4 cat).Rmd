@@ -1,0 +1,190 @@
+---
+title: "Distribution diamétrique (4 cat)"
+author: "Mod"
+date: "2024-03-19"
+output: word_document
+---
+
+Ce document est exploratoire pour la mise de données diamétrique. Il fait suite à *Description des données(v1)* qui lui dispose des toutes premières analyses faites avec les premiers lots de données.
+```{r environnement de travail}
+setwd("~/cours_r/Stage_M2")
+```
+
+```{r Packages}
+library(tidyverse) #pour toutes les fonctions associées
+library(ggplot2) #pour les graphes
+library(foreach)   #pour lancer une action pour chacun de mes objets
+```
+
+On va réaliser la distribution diamétrique de 4 catégories supposée d'espèce. 
+
+Pour sélectionner les espèces d'intérêt on va partir de dire d'expert de Molino, et classer dans 4 catégories les espèces et voir ce qu'il en est : Ombre toute leur vie, lumière toute leur vie, ombre puis lumière au stade adulte, lumière puis ombre au stade adulte.
+
+Pour se faire la main on va commencer par utiliser les donénes de ALT sur la P16 et plus précisément les 5ha qui nous intéresse.
+```{r importation des données}
+paracou_9ha <- read.csv("~/cours_r/Stage_M2/understory_paracou_9ha_sp_20240126.csv")
+paracou_G <- paracou_9ha[,c(2:25)] #TreeID jusqu'à scientificName
+```
+
+
+#Ombre toute leur vie
+On va créer une liste des espèces tolérante à l'ombre toute leur vie pour pouvoir comparer entre elle leur courbes 
+```{r création de liste}
+shade <- c("Anaxagorea dolichocarpa", "Cordia nodosa", "Diospyros capreifolia", "Eugenia coffeifolia", "Rinorea amapensis", "Tovomita brevistaminea", "Trymatococcus oligandrus")
+```
+Création de cartes à la chaîne
+```{r pls courbe}
+shade_c <- list()
+# Création des graphes ggplot pour chaque élément de shade
+for(k in 1:length(shade)) {
+  plot_data <- paracou_G %>%
+    filter(scientificName == shade[k]) %>%
+    group_by(DBH) %>%
+    summarise(occurrences = n()) %>%
+    arrange(DBH)
+  
+  shade_c[[k]] <- ggplot(plot_data, aes(x = DBH)) +
+   geom_histogram(breaks = seq(1, 100, by = 1 ),fill = "darkcyan", color = "black") +
+    theme_light() +
+    labs(x = "DBH", y = "Occurrences", title = paste("Distribution diamétrique de", shade[k]))
+}
+
+# Afficher les graphes contenus dans la liste shade_c
+for (i in 1:length(shade_c)) {
+  print(shade_c[[i]])
+}
+
+```
+On veut faire une liste par tempérament d'étude pour pouvoir automatiser la création de graphique. On pourrait y faire passer une droite d'ajustement.
+
+#Lumière toute leur vie
+Cecropia (toutes les spp.), Didymopanax decaphyllus, Goupia glabra, Inga alba, Tachigali melinonii
+
+```{r distrib diamétrique lux}
+#Création de la liste
+lux <- c("Cecropia obtusa", "Didymopanax decaphyllus", "Goupia glabra", "Inga alba", "Tachigali melinonii")
+
+# Création des graphes ggplot pour chaque élément de lux
+lux_c <- list()
+for(k in 1:length(lux)) {
+  plot_data <- paracou_G %>%
+    filter(scientificName == lux[k]) %>%
+    group_by(DBH) %>%
+    summarise(occurrences = n()) %>%
+    arrange(DBH)
+  
+  lux_c[[k]] <- ggplot(plot_data, aes(x = DBH)) +
+   geom_histogram(breaks = seq(1, 100, by = 1 ),fill ="darkgoldenrod1", color = "black") +
+    theme_light() +
+    labs(x = "DBH", y = "Occurrences", title = paste("Distribution diamétrique de", lux[k]))
+}
+
+# Afficher les graphes contenus dans la liste lux_c
+for (i in 1:length(lux_c)) {
+  print(lux_c[[i]])
+}
+```
+
+#Ombre puis limière au stade adulte
+- Emergents : Humiria balsamifera, Pradosia cochlearia
+```{r lombre puis lumière}
+#Canopée (clair)
+canop <- c("Eschweilera coriacea", "Lecythis zabucajo", "Licania alba", "Pradosia cochlearia")
+# Création des graphes ggplot pour chaque élément de canopée
+canope_c <- list()
+for(k in 1:length(canop)) {
+ data <- paracou_G %>%
+    filter(scientificName == canop[k]) %>%
+   select(DBH) %>%
+   
+   canope_c[[k]] <- ggplot(data) +
+    geom_histogram(breaks = seq(0, 200, by = 5),color = "chartreuse3") +
+    labs(x = "DBH", y = "Occurrences", title = paste("Distribution diamétrique de", canope_c[k]))
+}
+
+# Afficher les graphes contenus dans la liste canopée_c
+for (i in 1:length(canope_c)) {
+  print(canope_c[[i]])
+}
+```
+Il semblerait que l'on ne dispose pas de ces espèces.
+
+```{r l'ombre puis lumière 2}
+#Emergente (foncé)
+emerg <- c("Humiria balsamifera", "Pradosia cochlearia")
+
+# Création des graphes ggplot pour chaque plantes émergentes
+emerg_c <- list()
+for(k in 1:length(emerg)) {
+plot_data <- paracou_G %>%
+    filter(scientificName == emerg[k]) %>%
+    group_by(DBH) %>%
+    summarise(occurrences = n()) %>%
+    arrange(DBH)
+  
+    emerg_c[[k]] <- ggplot(plot_data, aes(x = DBH)) +
+   geom_histogram(breaks = seq(1, 100, by = 1 ),fill = "chartreuse4", color = "black") +
+    theme_light() +
+    labs(x = "DBH", y = "Occurrences", title = paste("Distribution diamétrique de", emerg[k]))
+}
+
+# Afficher les graphes contenus dans la liste canopée_c
+for (i in 1:length(emerg_c)) {
+  print(emerg_c[[i]])
+}
+```
+
+#Lumière puis ombre au stade adulte
+
+```{r lux puis ombre}
+lux_shade <- c("Trichilia schomburgkii"," Pourouma melinonii", "Pogonophora schomburgkiana", "Cordia sprucei", "Garcinia benthamiana", "Henriettea flavescens","Cupania scrobiculata", "Hebepetalum humiriifolium", "Inga loubryana")
+  
+# Création des graphes ggplot pour chaque élément de canopée
+lux_shade_c <- list()
+for(k in 1:length(lux_shade)) {
+plot_data <- paracou_G %>%
+    filter(scientificName == lux_shade[k]) %>%
+    group_by(DBH) %>%
+    summarise(occurrences = n()) %>%
+    arrange(DBH)
+  
+    lux_shade_c[[k]] <- ggplot(plot_data, aes(x = DBH)) +
+   geom_histogram(breaks = seq(1, 100, by = 1 ),fill ="coral", color = "black") +
+    theme_light() +
+    labs(x = "DBH", y = "Occurrences", title = paste("Distribution diamétrique de", lux_shade[k]))
+}
+
+# Afficher les graphes contenus dans la liste canopée_c
+for (i in 1:length(lux_shade_c)) {
+  print(lux_shade_c[[i]])
+}
+```
+
+#Contre vérification
+
+```{r avec Giacomo}
+#Test avec G
+paracou_G %>%
+  filter(scientificName == "Lecythis persistens") %>%
+  ggplot(aes( x = log(DBH))) +
+  geom_histogram(breaks = seq(1, 100, by = 2))
+
+#CDF
+new <- subset(paracou_G, paracou_G$scientificName == "Goupia glabra", select =c (DBH))
+new <- na.omit(new)
+new$DBH <- sort(new$DBH)
+new$ord <- order(new$DBH)
+new$cdf <- 1-(new$ord/max(new$ord))
+ggplot(data = new, aes(x = log(DBH), y = (cdf)) + geom_point() + geom_smooth(method = lm)
+#création fonction linéaire
+lm( log(new$cdf+0.0000000000000001) ~log(new$DBH), data = new)
+
+#CDF Qualea rosealu
+new <- subset(paracou_G, paracou_G$scientificName == "Anaxagorea dolichocarpa", select =c (DBH))
+new$DBH <- sort(new$DBH)
+new$ord <- order(new$DBH)
+new$cdf <- 1-(new$ord/max(new$ord))
+ggplot(data = new, aes(x = log(DBH), y = log(cdf))) + geom_point()
+```
+#CONCLUSION
+Après cette phase d'observation de chacune des espèces d'intérêt nous avons pu voir que nous ne disposion pas assez de 

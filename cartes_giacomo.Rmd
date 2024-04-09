@@ -1,0 +1,74 @@
+---
+title: "Cartes_Giacomo"
+author: "Mod"
+date: "2024-02-26"
+output: html_document
+---
+Ce script à pour objectif de exporter l'ensemble des cartes sur les espèces dont nous voulons vérifier la présence de outlayers.
+
+#Mise en place
+```{r packages utilisés}
+library(tidyverse) #pour toutes les fonctions associées
+library(ggplot2)   #pour les graphes
+library(sf)        #pour la manipulation des couches shapefiles
+library(ggspatial) #pour l'échelle et la flèce du nord de la carte
+library(foreach)   #pour lancer une action pour chacun de mes objets
+```
+
+```{r importation des données}
+paracou_9ha <- read.csv("understory_paracou_9ha_sp_20240126.csv")
+topo <- st_read("Topo4Levels.shp")
+```
+#Spacialisation des données
+
+```{r données spatialisées}
+paracou_G <- paracou_9ha[,c(2:25)] #TreeID jusqu'à scientificName
+
+#tableau de donnée à coordonnée non-spatialisé rendre spatiale (donnée sf)
+paracou_G2 <- paracou_G %>%
+  filter (!is.na(Xutm)) %>%
+  st_as_sf(coords = c("Xutm", "Yutm"), crs = st_crs(2972)) 
+#crs = st_crs(2972) sert à préciser le SCR pour mon shp.
+#st_crs(2972) = RFGR95 donc j'ai le droit de le changer si le crs de départ est WGS 84 / UTM zone 22N 
+
+#attribution d'un CRS au lieu d'une re-projection
+st_crs(topo) <- st_crs(2972)
+
+#Intersection couche polygone à point (/!\ crs égaux & sens de fusion)
+paracou_topo <- st_intersection(paracou_G2, topo)
+```
+
+#Création des cartes
+```{r liste espèces}
+#faire une liste des 40 plus abondantes espèces
+esp_40 <- paracou_topo %>%
+  select(scientificName) %>%
+  count(scientificName, sort = TRUE) %>%
+  filter(!is.na(scientificName)) %>%
+  group_by(scientificName) %>%
+  head(40) %>%
+  pull(scientificName)
+
+#objet dans mon environnement
+cartes_G <- list()
+
+#foreach
+foreach (k = 1:length(esp_40)) %do% {
+  cartes_G[[k]] <- paracou_topo %>%
+    filter(scientificName == esp_40[[k]]) %>% #donne la position dans le vecteur
+    select(scientificName, DBH) %>%
+   ggplot() +
+    geom_sf(aes(color = DBH)) +
+    scale_color_gradient(low = "blue", high = "red") +
+    theme_light() +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+    labs(title = paste("Distribution spatiale de", esp_40[[k]], "en fonction du DBH"), color = "DBH", fill = "Topographie")
+return(cartes_G)
+}
+
+#visualisation de 2-3plots
+foreach(k = 1:3) %do% {
+  cartes_G[[k]]
+}
+
+```
