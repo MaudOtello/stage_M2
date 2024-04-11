@@ -1,0 +1,7 @@
+---
+title: "Bayésien"
+author: "Maud"
+date: "2024-04-11"
+output: word_document
+---
+Ce script à pour objectif de construire un modèle bayésien qui nous permettra de savoir la probabilité d'être dans une espèce sachant son environnement.
