@@ -5,3 +5,112 @@ date: "2024-04-11"
 output: word_document
 ---
 Ce script à pour objectif de construire un modèle bayésien qui nous permettra de savoir la probabilité d'être dans une espèce sachant son environnement.
+#Environnement de travail
+```{r répertoire de travail, echo=FALSE}
+setwd("C:/Users/Maud Otello/Documents/cours_r/Stage_M2/script")
+```
+
+
+```{r package}
+library(tidyverse)
+library(rstan)
+```
+
+#Mise en place
+Pour commencer on va importé les données de la P1, et plus précisément l'année de relevé 2016.
+```{r création donné p1}
+#arbre > 10 cm de DBH
+P1_all <- read.csv("~/cours_r/Stage_M2/ParacouP1AllYears.csv", comment.char="#")
+##sélection de l'année 2016
+P1_adult <- P1_all %>%
+  filter(CensusYear == 2016)
+##sélection des colonnes utiles
+P1_adult <- P1_adult %>%
+  select("idTree","Xutm","Yutm","Family","Genus","Species","Botanist","CensusYear","Circ","CircCorr")
+
+#arbre < 10 cm de DBH
+paracou_J <- read.csv("~/cours_r/Stage_M2/2024ParacouJuveniles(v2).csv", sep=";", comment.char="#")
+
+##sélection de la parcelle 1
+P1_juvenil <- paracou_J %>%
+  filter (Project == "ParacouRegeneration" &
+            Plot == 1 &
+            CensusYear == 2016)
+##sélection des colonnes utiles
+P1_juvenil <- P1_juvenil %>%
+  select("idTree","Xutm","Yutm","Family","Genus","Species","Botanist","CensusYear","Circ","CircCorr")
+
+#fusion
+P1 <- full_join(P1_juvenil, P1_adult)
+
+#création de la colonne scientificName
+P1 <- P1 %>% 
+  mutate(scientificName = paste(Genus, Species, sep = " "))
+
+#création de la colonne DBH
+P1 <- P1 %>%
+  mutate(DBH = 
+           if_else(is.na(Circ), CircCorr/pi, Circ/pi))
+```
+
+P1 est composé de deux jeux de données différents. Nous travaillons que sur les 25 espèces présentes dans les données juvéniles. Alors nous allons établir un filtre pour finalement n'avoir que celles-ci.
+```{r filtre des 25 espèces}
+#sélection des espèces d'intérêts
+paracou_J <- paracou_J %>%
+  mutate(scientificName = paste(Genus, Species, sep = " "))
+INRAE <- paracou_J %>%
+  filter(Project == "ParacouRegeneration") %>%
+  distinct(scientificName) %>%
+  pull()
+
+#retrait des espèces sans intérêts
+INRAE <- INRAE[!(INRAE %in% c("Symphonia sp.2", "Indet.Indet. Indet.", "Symphonia sp.4", "Symphonia sp.3"))]
+
+#filtre dans P1
+P1 <- P1 %>%
+  filter(scientificName %in% INRAE)
+```
+Notre jeu de donnée est ridiculement faible (930 observation tout confondu). A croire que la forêt est clairesemée. 
+
+Maintenant que nous disposons de notre jeu de donnée **P1**. 
+
+Nous allons identifier les espèces les plus abondantes et les espèces les moins abondante. /!\ Nous utilisons deux jeux de données qui ne possèdent pas les mêmes plans expérimentales /!\  
+```{r plus petit vs plus grand}
+P1 %>%
+  group_by(scientificName) %>%
+  count(scientificName)%>%
+   arrange(desc(n)) %>%
+  head(1)
+
+P1 %>%
+  group_by(scientificName) %>%
+  count(scientificName)%>%
+   arrange(desc(n)) %>%
+  tail(1)
+
+```
+Nous allons réaliser notre modèle sur _Iryanthera hostmannii_ qui a la plus forte abondance et _Didymopanax decaphyllus_ qui a la plus faible abondance.
+
+#Test du modèle simple
+Nous voudrions avoir Y qui représente 'La probabilité d'obtenir l'espèce'. $$Y ~ Binomial(p)$$. On a P qui peut prendre 2 valeurs : 1 = _Iryanthera hostmannii_
+0 = _Didymopanax decaphyllus_
+
+On va dans un premier temps identifier nos données du modèles
+```{r données}
+P1_donnee <- P1 %>%
+  filter(scientificName == "Didymopanax decaphyllus" |
+           scientificName == "Iryanthera hostmannii")
+
+N = nrow(P1_donnee)
+sp = as.integer(P1_donnee$scientificName == "Didymopanax decaphyllus")
+```
+
+On fait notre modèle
+```{r fit}
+fit = stan("m_binomiale.stan", data = list(N = N, y = sp), iter = 1000, chains = 4)
+
+traceplot(fit)
+summary(fit)
+```
+
+C'est bon notre modèle converge bien.
