@@ -1,0 +1,8 @@
+---
+title: "Distribution spatiale(6_esp)"
+author: "Maud"
+date: "2024-04-25"
+output: word_document
+---
+Ce document fait suite à **Distribution diamétrique (INRAE)** dans lequel nous avons pu identifier 6 espèces avec des structures diamétriques remarquables. 
+L'objectif de ce script est de réaliser une carte des distributions diamétriques de ces espèces d'intérêt.

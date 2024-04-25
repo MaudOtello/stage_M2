@@ -1,0 +1,142 @@
+---
+title: "lm_diametric (6esp)"
+author: "Maud"
+date: "2024-04-23"
+output: word_document
+---
+Ce document fait suite à **Distribution diamétrique (INRAE)** dans lequel nous avons pu identifier 6 espèces avec des structures diamétriques remarquables. 
+A partir de leur _cumulative distribution function_ nous allons réaliser des transformation de type modèle linéaire afin de comparer entre elles les paramètre associer. L'utilisation d'une première transformation en cdf est dans le but de mieux affiner le modèle de transformation.
+
+Les espèces que nous avons sélectionnées sont les suivantes : 
+1.	_Iryanthera sagotiona_ (ombre puis lumière)
+2.	_Pradosia cochlearia_ (ombre puis lumière)
+3.	_Dicorynia guianensis_ (tolérante à l'ombre (moins que Wacapou))
+4.	_Qualea rosea_ (tolérante à l'ombre)
+5.	_Vouacapoua americana_ (tolérante à l'ombre)
+6.	_Jacaranda copaia_ (peu tolérante à l'ombre)
+
+```{r stw directory, include=FALSE}
+#Environnement de travail
+setwd("C:/Users/Maud Otello/Documents/cours_r/Stage_M2")
+```
+
+```{r packages}
+library(tidyverse)
+```
+
+Pour cela nous allons utiliser les données de ALT.
+```{r importation des données, include=FALSE}
+#ALT
+paracou_9ha <- read.csv("~/cours_r/Stage_M2/understory_paracou_9ha_sp_20240126.csv")
+paracou_G <- paracou_9ha[,c(2:25)] #TreeID jusqu'à scientificName car erreur
+
+#selection des espèces d'intérêts
+##Création de la liste des espèces d'intérêt
+esp_6 <- c("Dicorynia guianensis", "Pradosia cochlearia", "Iryanthera sagotiana", "Qualea rosea", "Vouacapoua americana", "Jacaranda copaia")
+paracou_G <- paracou_G %>%
+  filter (scientificName %in% esp_6)
+```
+
+Qu'est-ce que tu veux faire :
+Comparer les distributions diamétriques entre-elles. A partir de la cumulative density correlation nous allons réaliser des droites de passage. 
+/!\ 
+```{r cdf + droite}
+#Création de la liste
+cdf_6 <- list()
+
+#Création des courbes
+for(k in 1:length (esp_6)) {
+  plot.cdf <- paracou_G %>%
+    filter (scientificName == esp_6[[k]]) %>% 
+    select(DBH) %>%
+    na.omit() %>%
+    mutate(DBH = sort(DBH),
+         ord = order(DBH),
+         cdf = 1 - (ord / max(ord))) %>%
+    ggplot(aes(x = log(DBH), y = cdf)) +
+    geom_point() +
+    geom_smooth(method = "lm", color = "tomato" ) +
+    ylim(0, 1) +
+    labs(x = "log(DBH)", y = "Probabilité", title = paste("Cumulative distribution de", esp_6[k])) +
+    #ajout de la droite d'équation en haut à droite
+    geom_text(aes(label = paste("y =", round(coef(lm(cdf ~ log(DBH)))[[2]], 2), "x +", round(coef(lm(cdf ~ log(DBH)))[[1]], 2))),
+            x = Inf, y = Inf, hjust = 1, vjust = 1, size = 4, color = "tomato")
+
+#ajout du graphique à la liste  
+  cdf_6[[k]] <- plot.cdf
+}
+
+#Affichage des graphes
+print(cdf_6)
+```
+La comparaison à l'aide d'une droite (comparaison des coeficiens de pente), reste quand même bien limité. 
+
+#General linear model
+Nous allons appliquer une transformation de type exponentiel à notre modèle. Pour pouvoir faire cette transformation nous devons ajouter à notre jeu de donné une colonne cdf. Nous nous voulons complémentaire.
+Je veux un data.frame qui contient 6 dataframe de chaque espèce donc je vais créer une boucle qui va me permettre de faire ça.
+```{r création de la colonne 1-cdf}
+# Création de l'objet 
+paracou_esp6 <- data.frame()
+
+# Création des data.frames
+for(k in 1:length (esp_6)) {
+  paracou_esp6 [[k]] <- paracou_G %>%
+  filter (scientificName == esp_6[[k]]) %>% 
+    select(DBH) %>%
+    na.omit() %>%
+    mutate(DBH = sort(DBH),
+         ord = order(DBH),
+         cdf = 1 - (ord / max(ord)))
+}
+
+paracou_esp6 <- paracou_G %>%
+  filter (scientificName == esp_6[[1]]) %>% 
+    select(DBH) %>%
+    na.omit() %>%
+    mutate(DBH = sort(DBH),
+         ord = order(DBH),
+         cdf = 1 - (ord / max(ord)))
+
+```
+
+#Poubelle
+```{r cdf}
+Qualea <- paracou_G %>%
+  filter(scientificName == "Quelea rosea") %>%
+  mutate(cdf == ecdf(DBH))
+```
+
+```{r test}
+# Création de la liste
+sd_6 <- list()
+
+#Création du modèle linéaire
+lm_sd <- paracou_G %>%
+  group_by(DBH) %>%
+  summarise(n = n()) %>%
+  lm(n ~ DBH)
+
+# Création des courbes
+for(k in 1:length(esp_6)) {
+  plot.sd <- paracou_G %>%
+    group_by(DBH) %>%
+    arrange(DBH) %>%
+    ggplot(aes(x = DBH)) +
+    geom_histogram(breaks = seq(1, 100, by = 1), fill = "forestgreen", color = "black") + # Début à 1
+    theme_light() +
+    labs(x = "DBH", y = "Occurrences", title = paste("Distribution diamétrique de", esp_6[k])) +
+    abline(y ~ x,color = "tomato", lwd = 2) + # Ajustement lm
+    ylim(0, 1) 
+    # # Ajout de la droite d'équation en haut à droite
+    # geom_text(aes(label = paste("y =", round(coef(lm(n ~ DBH, data = as.data.frame()))[[2]], 2),
+    #                             "x +", round(coef(lm(n ~ DBH, data = as.data.frame()))[[1]], 2))),
+    #           x = Inf, y = Inf, hjust = 1, vjust = 1, size = 4, color = "tomato")
+  
+  # Ajout du graphique à la liste
+  sd_6[[k]] <- plot.sd
+}
+
+# Affichage des graphes
+print(sd_6)
+```
+
