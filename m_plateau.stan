@@ -5,7 +5,7 @@ data {
   int <lower = 0> N ; // Nombre d'observation (ligne)
   int <lower = 1> S ; // Nombre d'espèce (colonne)
   int <lower = 0 , upper = 1 > y[N,S]; //Matrice présence absence par espèce et observation
-  int <lower = 0 , upper = 1 > x[N] ;  //Topographie, présence en plateau
+  int <lower = 0 , upper = 1 > z[N] ;  //Topographie, présence en plateau
 }
 
 parameters {
@@ -14,7 +14,9 @@ parameters {
 
 model {
   for (n in 1:N){
-    y[n] ~ dirichlet_multinomial()(alpha) ; //likehood
+    if (z[n]== 1){ // précise en présence de plateau
+    y[n] ~ multinomial (alpha) ; //likehood
+  } else{}
   }
-  alpha ~ uniform(0,1) ;    // prior
+  alpha ~ dirichlet(rep_vector(0,S)) ;    // prior
 }
