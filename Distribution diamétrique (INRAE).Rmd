@@ -1,35 +1,45 @@
 ---
-title: "Distribution diamétrique (INRAE)"
+title: "Distribution diamétrique (liste INRAE)"
 output: word_document
-date: "2024-04-04"
+date: "2024-04-30"
 ---
-Ce script est créé dans le but d'observer les distributions diamétriques des espèces que l'on va étudier dans la deuxième partie. La deuxième partie sera réalisé sur les données de l'INRAE qui comprend 29espèces d'intérêt.
 
-#Mise en place
-```{r environnement de travail}
+Il existe une première version de ce document à la date du 4 Avril 2024 réalisé avec les données non épuré de ALT.
+
+Ce script est créé dans le but d'observer les distributions diamétriques de la liste INRAE sur les données ALT. C'est un inventaire exhaustive des arbres à un diamètre à hauteur de poitrine (DBH) à partir de 1cm. Il a été réalisé à partir de 2018 sur 3ans. Cela a pour but nous donner une première indication sur la tolérance à l'ombre. La deuxième partie sera réalisé sur les données de l'INRAE qui comprend 25 espèces d'intérêts.
+
+# Mise en place
+
+```{r environnement de travail, include = F}
 setwd("~/cours_r/Stage_M2")
 ```
-
 
 ```{r Packages}
 library(tidyverse) #pour toutes les fonctions associées (dplr, ggplot2,...)
 ```
-Nous allons nous servir de l'inventaire floristique du projet ALT réalisé sur 5ha de la P16 à Paracou (Guyane fr). C'est un inventaire exhaustive des arbres à un diamètre à hauteur de poitrine (DBH) à partir de 1cm. Il a été réalisé à partir de 2018 sur 3ans.
 
 ```{r importation des données}
-#ALT
-paracou_9ha <- read.csv("~/cours_r/Stage_M2/understory_paracou_9ha_sp_20240126.csv")
-paracou_G <- paracou_9ha[,c(2:25)] #TreeID jusqu'à scientificName car erreur
+# ALT
+paracou_ALT <- read.csv("~/cours_r/Stage_M2/ALT_Paracou9ha_20240430.csv")
 
-#INRAE (Regeneration plot)
+## renomme le nom de colonne pour s'ajuster aux autres jeu de données
+paracou_ALT <- paracou_ALT %>% 
+  rename(scientificName = ScientificName)
+
+## on enlève les "_" de la colonnes scientificName
+paracou_ALT <- paracou_ALT %>%
+  mutate(scientificName = gsub("_", " ", scientificName))
+
+# INRAE (Regeneration plot)
 Paracou_Juveniles <- read.csv("~/cours_r/Stage_M2/2024ParacouJuveniles(v2).csv", sep=";", comment.char="#")
 
-#Création d'une colonne scientificName
+## Création d'une colonne scientificName
 Paracou_Juveniles <- Paracou_Juveniles %>%
   mutate(scientificName = paste(Genus, Species, sep = " "))
 ```
 
 Nous avons extraits la liste des espèces d'intérêt de l'INRAE.
+
 ```{r liste espèces}
 INRAE <- Paracou_Juveniles %>%
   filter(Project == "ParacouRegeneration") %>%
@@ -37,14 +47,38 @@ INRAE <- Paracou_Juveniles %>%
   pull()
 ```
 
-#Distribution simple
+# Effectifs
+
+Nous allons observer dans un premier temps les effectifs dont dispose l'ensemble des espèces auxquels on s'intéresse.
+
+```{r effectif INRAE, echo=FALSE, message=FALSE, results='asis'}
+#L'histogramme
+paracou_ALT %>%
+  filter(scientificName %in% INRAE) %>%
+  ggplot(aes(x = scientificName))+ 
+  geom_histogram(stat="count",fill = "yellowgreen", color = "black") +
+  theme_light() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + #avoir la légende des x à la verticale
+  labs(title = "Occurence des espèces à partir des données ALT", x = "Nom d'espèce", y = "Occurence")
+
+#Le décompte
+paracou_ALT %>%
+  filter(scientificName %in% INRAE) %>%
+  group_by(scientificName)%>%
+  count()
+```
+
+Dans la liste INRAE il comporte 29 espèces. Or ici il n'apparaît que 24. Les espèces manquantes sont Symphonia sp.2/3/4, Indet et *Eperua grandiflora* qui ne trouvent pas de correspondance avec le jeu de donnée ALT.
+
+# Distribution simple
+
 ```{r}
 #Création de l'objet comprenant l'ensemble des graphes
 INRAE_c <- list()
 
 #Création de la boucle
 for(k in 1:length(INRAE)) {
- plot.data <-  paracou_G %>%
+ plot.data <-  paracou_ALT %>%
     filter (scientificName == INRAE[[k]]) %>%
     group_by(DBH) %>% 
     arrange (DBH) %>% 
@@ -59,12 +93,11 @@ for(k in 1:length(INRAE)) {
 #Affichage des graphes contenus dans la liste
 print(INRAE_c)
 ```
-De visuel, les distributions diamétrique d'une majorité d'entre elles sont exploitable. Nous nottons que les _Symphonia spp._ ainsi que _Eperua grandiflora_ et _Ind_ (indéterminé) n'ont pas de correspondance dans notre jeu de donnée et donc pas de données associée. 
-Parmis les faibles occurences dans les distributions nous avons : 
-* [0;10] _Goupia Glabra_, _Symphonia globulifera_, _Moronobea coccinea_ (4), _Didymlipanaw decaphyllus_, _Carapa surinamensis_, _Virola surinamensis_ (3), _Andira coriacea_ (5), _Sterculia speciosa_, _Platonia insignis_
-* [10;30]  _Recordoxylon speciosum_, _Eperua falcata_, _Jacaranda copaia_
 
-Finalement dans la liste des 29 il nous reste 21 espèces où l'on pourrait potentiellement ressortir quelque chose de bien. NOus allons retirer dèsaprésent les espèces avec trop peu de relevés.
+De visuel, les distributions diamétrique d'une majorité d'entre elles sont exploitable. Nous nottons que les *Symphonia spp.* ainsi que *Eperua grandiflora* et *Ind* (indéterminé) n'ont pas de correspondance dans notre jeu de donnée et donc pas de données associée. Parmis les faibles occurences dans les distributions nous avons : \* [0;10] *Goupia Glabra*, *Symphonia globulifera*, *Moronobea coccinea* (4), *Didymlipanaw decaphyllus*, *Carapa surinamensis*, *Virola surinamensis* (3), *Andira coriacea* (5), *Sterculia speciosa*, *Platonia insignis* \* [10;30] *Recordoxylon speciosum*, *Eperua falcata*, *Jacaranda copaia*
+
+Finalement dans la liste des 29 il nous reste 21 espèces où l'on pourrait potentiellement ressortir quelque chose de bien. Nous allons retirer dès à présent les espèces avec trop peu de relevés.
+
 ```{r retrait espèces faible}
 #Retrait de la liste des espèces non-utilisable
 not <- c("Moronobea coccinea","Virola surinamensis", "Andira coriacea","Eperua grandiflora","Symphonia sp.3", "Symphonia sp.4", "Symphonia sp.2","Indet.Indet. Indet.")
@@ -72,16 +105,17 @@ not <- c("Moronobea coccinea","Virola surinamensis", "Andira coriacea","Eperua g
 INRAE_2 <- setdiff(INRAE, not)
 ```
 
+# Cumulative distribution function
 
-#Cumulative distribution function
 La cumulative distribution est une fonction de probabilité, je ne sais plus tout s'est effacé.
+
 ```{r cdf}
 #Création de la liste
 INRAE_cdf <- list()
 
 #Création des courbes
 for(k in 1:length (INRAE_2)) {
-  plot.cdf <- paracou_G %>%
+  plot.cdf <- paracou_ALT %>%
     filter(scientificName == INRAE_2[[k]]) %>%
     select(DBH) %>%
     na.omit() %>%
@@ -98,9 +132,5 @@ for(k in 1:length (INRAE_2)) {
 #Affichage des graphes
 print(INRAE_cdf)
 ```
-Maintenant que l'on dispose du tracé de ces courbes nous allons réaliser une comparaison de cou
 
-D'après la comparaison des espèces que nous avais données Molino nous avons les espèces :
-
-#Présence d'adulte
-Nous aimerions faire un tableau qui indique si oui ou non, les espèces présentent des individus "adultes". Dans le cas où c'est non nous irons voir au niveau de leur autécologie ce qu'il est dit.
+fin du document

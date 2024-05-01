@@ -3,29 +3,45 @@ title: "Description des données"
 author: "Mod"
 date: "2024-02-07"
 output: word_document
+editor_options: 
+  markdown: 
+    wrap: 72
 ---
-#Environnement de travail
-```{r}
+
+# Environnement de travail
+
+```{r environnement de travail, include = F}
 setwd("~/cours_r/Stage_M2")
 ```
 
 ```{r Packages}
 library(tidyverse) #pour toutes les fonctions associées
-library(sf) #pour la manipulation des couches shapefiles
-library(ggspatial) # scale bars and north arrows
-library(foreach) #lancer une action pour chacun de mes objets
+library(sf)        #pour la manipulation des couches shapefiles
+library(ggspatial) #scale bars and north arrows
+library(foreach)   #lancer une action pour chacun de mes objets
 ```
 
-#paracou_G
-Paraou 9ha sont les données que m'a transmis Giaccomo. On peut voir que son jeu de donnée a été dédoublé. On va donc sélectionner uniquement les première colonnes et nommer le jeu de donnée _paracou_G_. Comme on dispose déjà d'un numéro unique d'identification par individu on ne prendra pas la première colonne.
-```{r importation des données}
+# Données ALT
+
+## Paracou_G
+
+(paracou_G) Paraou 9ha sont les données que m'a transmis Giaccomo. On
+peut voir que son jeu de donnée a été dédoublé. On va donc sélectionner
+uniquement les première colonnes et nommer le jeu de donnée *paracou_G*.
+Comme on dispose déjà d'un numéro unique d'identification par individu
+on ne prendra pas la première colonne.
+
+```{r importation paracou_G}
 paracou_9ha <- read.csv("~/cours_r/Stage_M2/understory_paracou_9ha_sp_20240126.csv")
 paracou_G <- paracou_9ha[,c(2:25)] #TreeID jusqu'à scientificName
 ```
 
-Donnée G permets d'avoir la localisation des espèces d'intérêt. Et paracouDescription utiliser la colonne UTM pour pouvoir avoir les cartes.
+Donnée G permets d'avoir la localisation des espèces d'intérêts. Et
+paracouDescription utiliser la colonne UTM pour pouvoir avoir les
+cartes.
 
-J'aimerai maintenant savoir c'est quoi les DBH les plus petit obtenue et le plus grand. Puis identifier le nombre d'espèces au total.
+J'aimerai maintenant savoir c'est quoi les DBH les plus petit obtenue et
+le plus grand. Puis identifier le nombre d'espèces au total.
 
 ```{r min,max, nb esp}
 min(paracou_G$DBH[paracou_G$DBH != 0], na.rm = TRUE)
@@ -33,9 +49,10 @@ max(paracou_G$DBH, na.rm = T)
 
 length(unique(paracou_G$scientificName))
 ```
-Il semble y avoir des erreurs de saisie car la première ligne nous indique des individus de DBH < 1. Or le décompte se faisait qu'à partir de 1cm.
 
-## Import des shapefiles 
+Il semble y avoir des erreurs de saisie car la première ligne nous
+indique des individus de DBH \< 1. Or le décompte se faisait qu'à partir
+de 1cm.
 
 ```{r importation shapefile}
 topo <- st_read("~/cours_r/Stage_M2/Cartographie/Topo4Levels.shp")
@@ -44,17 +61,20 @@ Guyafor_plot <- st_read("~/cours_r/Stage_M2/Cartographie/GuyaforPlots.shp")
 #Isocline <- st_read("~/cours_r/Stage_M2/Cartographie/Isoligne_Paracou_1m.shp")
 ```
 
-##Testing
-Maintenant qu'on a réussi à faire plot le shp il nous reste à essayer de faire une petite carte sympa.
+Maintenant qu'on a réussi à faire plot le shp il nous reste à essayer de
+faire une petite carte sympa.
+
 ```{r}
 ggplot(topo) +
   geom_sf(aes())
 ```
 
-#Analyse exploiratoire 
+## Analyse exploiratoire
 
-##DBH
+### DBH
+
 Voyons comment se répartie les DBH dans notre jeu de données.
+
 ```{r paracou_G$DBH}
 #Analyse du jeu de données
 summary(paracou_G$DBH, na.rm = T)  
@@ -66,7 +86,8 @@ paracou_G %>%
   labs(title = "Répartition des DBH", x = "DBH", y = "Fréquence")
 ```
 
-###nuages des points
+### nuages des points
+
 ```{r nuage de points}
 paracou_G %>%
   count(DBH) %>%
@@ -74,10 +95,15 @@ paracou_G %>%
   geom_point(position = "identity") +
   labs(title = "Répartition des DBH", x = "DBH", y = "Fréquence")
 ```
-Sans surprise la quantité d'individus comptabilisé se trouve à des DBH < 25cm. Les plantules prennent plus de place.
 
-##Family
-Regardons tout d'abord combien d'individus je dispose par famille. Est-ce qu'il y en a qui sortent du lot.
+Sans surprise la quantité d'individus comptabilisé se trouve à des DBH
+\< 25cm. Les plantules prennent plus de place.
+
+### Family
+
+Regardons tout d'abord combien d'individus je dispose par famille.
+Est-ce qu'il y en a qui sortent du lot.
+
 ```{r family}
 #Observons les chiffres
 paracou_G %>%
@@ -86,9 +112,13 @@ paracou_G %>%
   count()
 ```
 
-On peut voir qu'il y a 11708 NA. Ce qui est remarquable. Mais également qu'il y a des familles sous représentés et d'autre sur représenté. Pour mettre en avant cela on va réaliser un graphe comprenant les 20familles les moins représenté. Et les familles ayant un nombre d'individus > 100. Les ordres de grandeurs ont été pris au hasard. 
-_En quoi les familles avec moins de 10 indv sont important à prendre en compte ?_
-	
+On peut voir qu'il y a 11708 NA. Ce qui est remarquable. Mais également
+qu'il y a des familles sous représentés et d'autre sur représenté. Pour
+mettre en avant cela on va réaliser un graphe comprenant les 20familles
+les moins représenté. Et les familles ayant un nombre d'individus \>
+100. Les ordres de grandeurs ont été pris au hasard. *En quoi les
+familles avec moins de 10 indv sont important à prendre en compte ?*
+
 ```{r family_plot}
 #20 familles les plus représenté
 paracou_G %>%
@@ -101,15 +131,21 @@ paracou_G %>%
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
   labs(title = "20 familles les plus occurentes", x = "Famille", y = "Occurence")
 ```
-J'aimerai voir le nombre d'occurence par diamètre 
-```{r}
+
+J'aimerai voir le nombre d'occurence par diamètre
+
+```{r occurence par diamètre}
 paracou_G %>%
   ggplot() %>%
   geom_hist( aes(x= DBH))
 ```
 
-Maintenant on change d'échelle et on va évaluer tout ça à partir des espèces.
-J'aimerai réaliser le même graphe avec les espèces et qu'il m'affiche les couleurs en fonction des familles.
+### Espèces
+
+Maintenant on change d'échelle et on va évaluer tout ça à partir des
+espèces. J'aimerai réaliser le même graphe avec les espèces et qu'il
+m'affiche les couleurs en fonction des familles.
+
 ```{r espèces vs familles}
 paracou_G %>%
   select(scientificName, family) %>%
@@ -124,22 +160,127 @@ paracou_G %>%
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + #avoir la légende des x à la verticale
   labs(title = "Occurence des 20 espèces les plus fréquentes", x = "Famille", y = "Occurence")
 
-#Pour avoir l'occurence exacte et leur famille associée
+# Pour avoir l'occurence exacte et leur famille associée
 paracou_G %>%
   select(scientificName, family) %>%
   count(scientificName, family, sort = TRUE) %>%
   filter(!is.na(scientificName)) %>%
   group_by(scientificName) %>%
   head(20)
-`````````
-On peut voir que sur les 20 espèces les plus représenté seulement 10 familles sortent du lot. La présence de _Oxandra asbeckii_ est sur-représenté. Certaine famille comme les _Sapotacées_ font partie des plus présente mais à l'échelle de l'espèce celà n'est pas visible.
+```
 
-# Manipulation spatiale 
+On peut voir que sur les 20 espèces les plus représenté seulement 10
+familles sortent du lot. La présence de *Oxandra asbeckii* est
+sur-représenté. Certaine famille comme les *Sapotacées* font partie des
+plus présente mais à l'échelle de l'espèce cela n'est pas visible.
+
+## ALT_v2
+
+Nous avons reçu une version mise à jour par Léa FRANCOISE de
+l'inventaire ALT. Elle précise notamment que :
+
+1.  ajouté les corrections des arbres Cirad ainsi que les données
+    herbiers.
+
+2.  colonne commentaire épurée, ainsi que les noms d'espèces
+
+3.  présence de NA coordonnées en cours de correction =\> ajout colonnes
+    Xcorr and Ycorr pour l'aider dans l'appurement.
+
+On peut voir qu'il y a 148 observation de plus. Essayons de voir dans le
+détail ce qui a pu changer autre.
+
+```{r importation paracou_ALT}
+paracou_ALT <- read.csv("~/cours_r/Stage_M2/ALT_Paracou9ha_20240430.csv")
+
+#renomme le nom de colonne pour s'ajuster aux autres jeu de données
+paracou_ALT <- paracou_ALT %>% 
+  rename(scientificName = ScientificName)
+
+#on enlève les "_" de la colonnes scientificName
+paracou_ALT <- paracou_ALT %>%
+  mutate(scientificName = gsub("_", " ", scientificName))
+```
+
+Nous allons rapidement explorer le jeu de données pour identifier les
+différences grossières.
+
+```{r ALT_occurence}
+# ALT version 1
+paracou_G %>%
+  select(scientificName) %>%
+  count(scientificName, sort = TRUE) %>%
+  filter(!is.na(scientificName)) %>%
+  group_by(scientificName) %>%
+  head(20) %>%
+  ggplot(aes(x = reorder(scientificName, -n), y = n))+ #organiser dans l'ordre décroissant
+  geom_bar(stat = "identity", color = "black") +
+  theme_light() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + #avoir la légende des x à la verticale
+  labs(title = "Occurence des 20 espèces les plus fréquentes de ALT_v2", x = "Espèce", y = "Occurences")
+
+#ALT version 2
+paracou_ALT %>%
+  select(scientificName) %>%
+  count(scientificName, sort = TRUE) %>%
+  filter(!is.na(scientificName)) %>%
+  group_by(scientificName) %>%
+  head(20) %>%
+  ggplot(aes(x = reorder(scientificName, -n), y = n))+ #organiser dans l'ordre décroissant
+  geom_bar(stat = "identity", color = "black") +
+  theme_light() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + #avoir la légende des x à la verticale
+  labs(title = "Occurence des 20 espèces les plus fréquentes de ALT_v2", x = "Espèce", y = "Occurences")
+```
+
+On peut voir ici que le classement des espèces parmi les 20 plus
+représentées change notamment *Qualea rosea* et *Lecythis persistens*.
+Apparition de *Guarea costata* et *Bocoa prouacensis* parmi les plus
+abondantes.
+
+```{r min,max, nb esp}
+min(paracou_ALT$DBH[paracou_ALT$DBH != 0], na.rm = TRUE)
+max(paracou_ALT$DBH, na.rm = T)
+
+length(unique(paracou_ALT$scientificName, na.rm = T))
+```
+
+On peut voir qu'il y a 150 espèces en plus est-ce que cela est dû à des
+erreurs de frappes ou bien l'ajout de 150 espèces rares ? On peut voir
+la présence de "CAY-ATDN" à la fin de certaines espèces. Il semble y
+avoir plus de "subsp." puis une espèce qui se nomme "Tres haut" ?
+D'autres fois on peut voir que l'identification s'arrête à la famille
+(genre = Indet).
+
+```{r nb DBH effectif}
+# ALT version 1
+paracou_G %>%
+  filter(DBH > 1, 
+         !is.na(scientificName) &
+         !is.na(DBH) & 
+         !is.na(Xutm) &
+         !is.na(Yutm))
+# ALT version 2
+paracou_ALT %>%
+  filter(DBH > 1,
+         !is.na(scientificName) &
+         !is.na(DBH) &
+         !is.na(Xutm) &
+         !is.na(Yutm))
+```
+
+Au total, grâce à cette épuration nous comptons 2 567 individus de plus.
+
+# Manipulation spatiale
+
 L'objectif de cette partie est d'avoir un visuel sur notre parcelle.
 
-##Manipuler les données
-```{r données spatialisées}
-#tableau de donnée à coordonnée non-spatialisé rendre spatiale (donnée sf)
+## Manipuler les données
+
+Tableau de donnée à coordonnée non-spatialisé rendre spatiale (donnée
+sf)
+
+```{r}
 paracou_G2 <- paracou_G %>%
   filter (!is.na(Xutm)) %>%
   st_as_sf(coords = c("Xutm", "Yutm"), crs = st_crs(2972)) 
@@ -152,12 +293,18 @@ st_crs(topo) <- st_crs(2972)
 #Intersection couche polygone à point (/!\ crs égaux & sens de fusion)
 paracou_topo <- st_intersection(paracou_G2, topo)
 ```
-/!\ On a une perte d'observation du passage de Paracou_G > paracou_G2 > Paracou_topo. ça nous fait 231 puis 28 observations de perdues ! **pk ?** PAS DEDANS LES 2 COUCHES
 
+/!\\ On a une perte d'observation du passage de Paracou_G \> paracou_G2
+\> Paracou_topo. ça nous fait 231 puis 28 observations de perdues ! **pk
+?** PAS DEDANS LES 2 COUCHES
 
-##Distribution spatiale des espèces
-La couche de tableau a été mis en shp ce qui va nous permettre de cartographier. A partir de ces espèces les plus représentées on va essayer de voir quels sont leurs distributions.
-### espèce par espèce
+## Distribution spatiale des espèces
+
+La couche de tableau a été mis en shp ce qui va nous permettre de
+cartographier. A partir de ces espèces les plus représentées on va
+essayer de voir quels sont leurs distributions.
+
+### Espèce par espèce
 
 ```{r distribution par espèce}
 #_Oxandra asbeckii_
@@ -200,7 +347,7 @@ paracou_topo %>%
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
   labs(title = "Distribution spatiale de Iryanthera sagotiana en fonction de la topographie", color = "Topographie")
 
-#_Anaxagorea dolichocarpa_
+# _Anaxagorea dolichocarpa_
 paracou_topo %>%
   filter(scientificName == "Anaxagorea dolichocarpa") %>%
   select(scientificName, TopoTypeFr) %>%
@@ -211,9 +358,10 @@ paracou_topo %>%
   labs(title = "Distribution spatiale de Anaxagorea dolichocarpa en fonction de la topographie", color = "Topographie")
 ```
 
-##Spatialisation diamétrique selon le DBH
+### Spatialisation diamétrique selon le DBH
 
-D'après ces espèces les plus abondantes on va réaliser un graphique représentant la distribution des plantules et arbres.
+D'après ces espèces les plus abondantes on va réaliser un graphique
+représentant la distribution des plantules et arbres.
 
 ```{r distribution DBH}
 paracou_topo %>%
@@ -225,9 +373,14 @@ paracou_topo %>%
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
   labs(title = "Distribution spatiale de Anaxagorea dolichocarpa en fonction du DBH", color = "DBH en cm")
 ```
-Ce n'est pas très visible avec les couleurs la répartition des classes de grandeur. Il faudrait donc avoir une catégorisation avec une croix pour les classse > 10 un point rouge pour les grands que l'on suppose parents.
 
-J'aimerai réaliser l'ensemble des cartes pour les 100 espèces les plus abondantes.
+Ce n'est pas très visible avec les couleurs la répartition des classes
+de grandeur. Il faudrait donc avoir une catégorisation avec une croix
+pour les classse \> 10 un point rouge pour les grands que l'on suppose
+parents.
+
+J'aimerai réaliser l'ensemble des cartes pour les 100 espèces les plus
+abondantes.
 
 ```{r boucle DBH}
 #faire une liste des 40 plus abondantes espèces
@@ -260,9 +413,11 @@ cartes_G[[i]] %>% plot
 }
 ```
 
+### Topo & DBH
 
-##Topo & DBH
-Il faut que j'arrive à lui dire de m'afficher la topographie que de la parcelle 16.
+Il faut que j'arrive à lui dire de m'afficher la topographie que de la
+parcelle 16.
+
 ```{r topo_P16}
 topo %>%
   select(TopoTypeFr, Plot) %>%
@@ -275,7 +430,8 @@ topo %>%
         pad_x = unit(0.0, "in"), pad_y = unit(0.1, "in"),
         style = north_arrow_fancy_orienteering)
 ```
-Il me faut faire apparaitre une graduation de couleur : 
+
+Il me faut faire apparaitre une graduation de couleur :
 
 ```{r graduation de couleur}
 paracou_topo %>%
@@ -290,7 +446,8 @@ paracou_topo %>%
   labs(title = "Distribution spatiale de Oxandra asbckii en fonction du DBH", color = "DBH", fill = "Topographie")
 ```
 
-On pourrait maintenant décidé de superposer la couche liée à la topographie.
+On pourrait maintenant décidé de superposer la couche liée à la
+topographie.
 
 ```{r topo & DBH}
 #_Oxandra asbeckii_
@@ -328,7 +485,7 @@ paracou_topo %>%
         pad_x = unit(0.0, "in"), pad_y = unit(0.1, "in"),
         style = north_arrow_fancy_orienteering)
 
-#Dicorynia guianensis
+# _Dicorynia guianensis_
 paracou_topo %>%
   filter(scientificName == "Dicorynia guianensis") %>%
   filter(DBH < 30 ) %>%
@@ -348,7 +505,7 @@ paracou_topo %>%
         pad_x = unit(0.0, "in"), pad_y = unit(0.1, "in"),
         style = north_arrow_fancy_orienteering)
 
-#Anaxagorea dolichoscarpa **Erreur d'écriture**
+# Anaxagorea dolichoscarpa **Erreur d'écriture**
 paracou_topo %>%
   filter(scientificName == "Anaxagorea dolichocarpa") %>%
   filter(DBH < 30 ) %>%
@@ -368,7 +525,7 @@ paracou_topo %>%
         pad_x = unit(0.0, "in"), pad_y = unit(0.1, "in"),
         style = north_arrow_fancy_orienteering)
 
-#Guarea costata
+# _Guarea costata_
 paracou_topo %>%
   filter(scientificName == "Guarea costata") %>%
   filter(DBH < 30 ) %>%
@@ -388,11 +545,15 @@ paracou_topo %>%
         pad_x = unit(0.0, "in"), pad_y = unit(0.1, "in"),
         style = north_arrow_fancy_orienteering)
 ```
-Pour avoir les coordonnées limites qui ne sont pas celles affiché il faut demander à R : st_bbox(paracou_topo).
 
+Pour avoir les coordonnées limites qui ne sont pas celles affiché il
+faut demander à R : st_bbox(paracou_topo).
 
-##Automatisation du travail (boucle)
-J'aimerai qu'après m'avoir sélectionné les 40 plus grandes occurrences (listes) qu'il m'affiche comme au-dessus une carte.
+## Automatisation du travail (boucle)
+
+J'aimerai qu'après m'avoir sélectionné les 40 plus grandes occurrences
+(listes) qu'il m'affiche comme au-dessus une carte.
+
 ```{r esp_40}
 #liste des 40 espèces les plus abondantes
 esp_40 <- paracou_G %>%
@@ -411,6 +572,7 @@ esp_40df <- as.data.frame(esp_40)
 ```
 
 Pour l'affichage on va faire :
+
 ```{r liste espèces}
 #faire une liste des 40 plus abondantes espèces
 esp_40 <- paracou_topo %>%
@@ -439,7 +601,6 @@ return(cartes_G)
 }
 ```
 
-
 ```{r liste espèces}
 foreach (k = 1:length(esp_40)) %do% {
   cartes_G[[k]] <- paracou_topo %>%
@@ -460,7 +621,6 @@ foreach(k = 1:4) %do% {
 }
 ```
 
-
 ```{r cartes selon espèces}
 #le graph correspondant à leur distribution
 paracou_topo %>%
@@ -474,17 +634,17 @@ paracou_topo %>%
   theme(strip.background = element_rect(fill = "black")) +
   labs(color = "Topographie") 
 ```
-L’apperçu des distributions de ces espèces nous montre déjà que 
 
-```{r}
-paracou_topo %>%
-  select(scientificName)
-from {esp_20 in }
-```
+L'apperçue des distributions de ces espèces nous montre déjà que ??
 
+# DB_JUVENILES_final
 
-#DB_JUVENILES_final
-Correspond aux données de Thomas Gaquiert recueilli lors de sa thèse. Elles ont été récupéré avec Melaine. Les données sont receuilli par hauteur. On aimerait avoir un ordre d'idée de ce qu'il se passe dedans cette inventaire. Par facilitation de manipulation on va créer une colonne scientificName.
+Correspond aux données de Thomas Gaquiert recueilli lors de sa thèse.
+Elles ont été récupéré avec Melaine. Les données sont receuilli par
+hauteur. On aimerait avoir un ordre d'idée de ce qu'il se passe dedans
+cette inventaire. Par facilitation de manipulation on va créer une
+colonne scientificName.
+
 ```{r DB_Juvenils_final}
 # Importation
 DB_JUVENILES_final <- read.csv2("~/cours_r/Stage_M2/DB_JUVENILES_final.csv")
@@ -494,7 +654,8 @@ DB_JUVENILES_final <- DB_JUVENILES_final %>%
   mutate(scientificName = paste(Genre, Espece, sep = " "))
 ```
 
-Maintenant on va voir les extrêmes
+Maintenant on va voir les extrêmes,
+
 ```{r description}
 ##nombre d'espèces
 DB_JUVENILES_final %>%
@@ -513,15 +674,26 @@ DB_JUVENILES_final %>%
   summarise(min_hauteur = min(Hauteur..cm., na.rm = TRUE))
 ```
 
-#guyadiv_paracou
-C'est un extrait du jeu de donnée de Molino qui a fait des transectes de 20m de large sur 250m de long sur plusieurs parcelles de paracou. Ces données ne sont pas spatialisées.
+# guyadiv_paracou
+
+C'est un extrait du jeu de donnée de Molino qui a fait des transectes de
+20m de large sur 250m de long sur plusieurs parcelles de paracou. Ces
+données ne sont pas spatialisées.
+
 ```{r guyadiv_paracou}
 guyadiv_paracou <- read.csv("~/cours_r/Stage_M2/guyadiv_paracou.csv", sep=";")
 ```
-On peut voir que chaque indv possède deux prises de relevés. Nous n'utiliseront pas ce jeu de donnée.
 
-#2024JUVENILS
-Le jeu de donnée _2024Juveniles_ comprend des données de plusieurs analyses (INRAE, Dygépop, Bloc Sud). On peut voir que l'identification des individus se fait sur plusieurs colonnes on va donc y intégrer une colonne ScientificNames pour uniformiser tout ça.
+On peut voir que chaque indv possède deux prises de relevés. Nous
+n'utiliseront pas ce jeu de donnée.
+
+# 2024JUVENILS
+
+Le jeu de donnée *2024Juveniles* comprend des données de plusieurs
+analyses (INRAE, Dygépop, Bloc Sud). On peut voir que l'identification
+des individus se fait sur plusieurs colonnes on va donc y intégrer une
+colonne "scientificNames" pour uniformiser tout ça.
+
 ```{r importation donnée}
 Paracou_Juveniles <- read.csv("~/cours_r/Stage_M2/2024ParacouJuveniles(v2).csv", sep=";", comment.char="#")
 
@@ -533,9 +705,10 @@ Paracou_Juveniles <- Paracou_Juveniles %>%
 Paracou_Juveniles <- Paracou_Juveniles %>%
   mutate(DBH = Circ/pi)
 ```
-Dans ce jeu de donnée on détecte la présence d'erreur notablement de la colonne CirCorr qui ne comporte que des NA. A redemander à Gaelle les données correctes pour l'instant on fait sans.
 
-On va regarder par type de données les variables de bases (nombre d'espèces...).
+On va regarder par type de données les variables de bases (nombre
+d'espèces...).
+
 ```{r description données}
 #INRAE
 ##nombre d'espèces
@@ -584,11 +757,296 @@ Paracou_Juveniles %>%
   select(Plot)%>%
   distinct()
 ```
-C'est quand même étrange que l'on ait un DBH maximum de 29.76cm de DBH dans des Juvéniles. Ce sont des cas extrêmes qui lors des premiers inventaires entraient dedans.
 
-On aimerait savoir si les données en UTM sont tous identiques ou non. Pour cela nous allons faire un code comme suit :
-Si 'UMT Y + UMT X + Census' sont identiques et que 'idtree' est différent alors affiche moi les lignes correspondantes.
-```{r UMT identique?}
+C'est quand même étrange que l'on ait un DBH maximum de 29.76cm de DBH
+dans des Juvéniles. Ce sont des cas extrêmes qui lors des premiers
+inventaires entraient dedans. De plus nous avons pu constaté qu'il
+manque 2 lots de donnée : P5 et P6.
 
+On aimerait savoir si les données en UTM sont tous identiques ou non.
+Autrement dit on aimerait savoir est-ce qu'il existe des idTree qui
+disposent du même c(Xutm, Yutm, CensusYear) ?
+
+```{r UMT identique}
+UMT_doublon <- Paracou_Juveniles %>%
+  filter(Project == "ParacouRegeneration") %>%
+  group_by(Xutm, Yutm, CensusYear, idTree) %>%
+  mutate(duplicate_count = n()) %>%
+  filter(duplicate_count>1) %>%
+  ungroup()
 ```
 
+Il n'existe apparament pas de doublon. Il semble y avoir des erreurs de
+saisis au niveau des espèces *"Symphonia sp.2, Symphonia sp.4, Symphonia
+sp.3"*. Nous aimerions savoir à quelles lignes ils sont et en quelles
+quantités.
+
+```{r erreurs de saisi}
+erreur <- Paracou_Juveniles %>%
+  filter(Project == "ParacouRegeneration" &
+           scientificName == "Symphonia sp.2" |
+           scientificName == "Symphonia sp.3" |
+           scientificName == "Symphonia sp.4")
+```
+
+## Occurence
+
+Pour visualiser on aimerait savoir quelles espèces disposent d'une forte
+présences quelque soit leur diamètre.
+
+```{r occurence}
+Paracou_Juveniles %>%
+  filter(Project == "ParacouRegeneration") %>%
+  count(scientificName) %>%
+  group_by(scientificName) %>%
+  ggplot(aes(x = reorder(scientificName, -n), y = n))+ #organiser dans l'ordre décroissant
+  geom_bar(stat = "identity", fill = "forestgreen", color = "black") +
+  theme_light() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + #avoir la légende des x à la verticale
+  labs(title = "Occurence des espèces d'intérêts", x = "Nom d'espèce", y = "Occurence")
+
+#Test en utilisant histogramme
+Paracou_Juveniles %>%
+  filter(Project == "ParacouRegeneration") %>%
+  arrange(desc(scientificName)) %>%
+  ggplot(aes(x = scientificName))+ #organiser dans l'ordre décroissant
+  geom_histogram(stat="count",fill = "forestgreen", color = "black") +
+  theme_light() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + #avoir la légende des x à la verticale
+  labs(title = "Occurence des espèces d'intérêts", x = "Nom d'espèce", y = "Occurence")
+```
+
+# Guyafor (P6,P11,P1)
+
+Les placettes Guyafor comprend les arbres de DBH\>10cm. La version des
+données est celles du 29/09/2023. On va commencer par travailler sur les
+parcelles où il n'y a pas eu de travaux forestiers. Les relevés de ces
+parcelles ont débuté en 1984. Pour chaque parcelles nous aimerons savoir
+quelles sont les 10 espèces les plus abondantes, et les 10 espèces les
+moins abondantes.
+
+```{r importation p1}
+#Importation
+P1 <- read.csv("~/cours_r/Stage_M2/ParacouP1AllYears.csv", comment.char="#")
+
+#Création de la colonne Scientificname
+P1 <- P1 %>%
+  mutate(scientificName = paste(Genus, Species, sep = " "))
+
+#Création de la colonne DBH
+P1 <- P1 %>% mutate(DBH = CircCorr/pi)
+
+#nombre d'espèces
+P1 %>%
+  distinct(scientificName)
+
+#Max
+P1 %>% 
+  select(DBH) %>%
+  max()
+
+##Min
+P1 %>%
+  filter(!is.na(DBH) & DBH != 0) %>%
+  summarise(min_DBH = min(DBH))
+
+##Année
+P1 %>%
+  select(CensusYear)%>%
+  distinct()
+```
+
+Maintenant on aimerait identifier les espèces les plus abondantes et
+inversement.
+
+```{r occurence p1}
+#Distribution des 10 espèces les plus présentes
+P1 %>%
+  select(scientificName) %>%
+  count(scientificName) %>%
+  arrange(desc(n)) %>%
+  head(20) %>%
+  ggplot(aes(x = reorder(scientificName, -n), y = n))+ #organiser dans l'ordre décroissant
+  geom_bar(stat = "identity", color = "black", fill = "violetred") +
+  scale_fill_brewer(palette = "RdYlGn") +
+  theme_light() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + #avoir la légende des x à la verticale
+  labs(title = "Occurence des 20 espèces les plus fréquentes sur la P1", x = "Espèces", y = "Occurence")
+
+#Distribution des 10 espèces les moins présentes
+P1 %>%
+  select(scientificName) %>%
+  count(scientificName) %>%
+  arrange(desc(n)) %>%
+  tail(20) %>%
+  ggplot(aes(x = reorder(scientificName, -n), y = n))+ #organiser dans l'ordre décroissant
+  geom_bar(stat = "identity", color = "black", fill = "violet") +
+  scale_fill_brewer(palette = "RdYlGn") +
+  theme_light() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + #avoir la légende des x à la verticale
+  labs(title = "Occurence des 20 espèces les moins fréquentes sur la P1", x = "Espèces", y = "Occurence")
+```
+
+/! Ils sont rangés par ordre alphabétique
+
+On peut voir que le diamètre le plus petit est à 5.651592cm de DBH. Ce
+qui ne devrait pas être le cas étant donné que le diamètre de
+précomptage était de 10cm de DBH.
+
+```{r importation p6}
+P6 <- read.csv("~/cours_r/Stage_M2/ParacouP6AllYears.csv", comment.char="#")
+
+#Création de la colonne Scientificname
+P6 <- P6 %>%
+  mutate(scientificName = paste(Genus, Species, sep = " "))
+
+#Création de la colonne DBH
+P6 <- P6 %>% mutate(DBH = CircCorr/pi)
+
+#nombre d'espèces
+P6 %>%
+  distinct(scientificName)
+
+#Max
+P6 %>% 
+  select(DBH) %>%
+  max()
+
+##Min
+P6 %>%
+  filter(!is.na(DBH) & DBH != 0) %>%
+  summarise(min_DBH = min(DBH))
+
+##Année
+P6 %>%
+  select(CensusYear)%>%
+  distinct()
+```
+
+Ici aussi le DBH le plus faible est de 5.
+
+Comme précédement nous allons observer l'effectif des espèces les plus
+abondantes, puis celle des moins
+
+```{r occurence p6}
+#Effectif des 10 espèces les plus présentes
+P6 %>%
+  select(scientificName) %>%
+  count(scientificName) %>%
+  arrange(desc(n)) %>%
+  head(20) %>%
+  ggplot(aes(x = reorder(scientificName, -n), y = n))+ #organiser dans l'ordre décroissant
+  geom_bar(stat = "identity", color = "black", fill = "orange3") +
+  scale_fill_brewer(palette = "RdYlGn") +
+  theme_light() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + #avoir la légende des x à la verticale
+  labs(title = "Occurence des 20 espèces les plus fréquentes sur la P6", x = "Espèces", y = "Occurence")
+
+#Effectif des 10 espèces les moins présentes
+P6 %>%
+  select(scientificName) %>%
+  count(scientificName) %>%
+  arrange(desc(n)) %>%
+  tail(20) %>%
+  ggplot(aes(x = reorder(scientificName, -n), y = n))+ #organiser dans l'ordre décroissant
+  geom_bar(stat = "identity", color = "black", fill = "orange") +
+  scale_fill_brewer(palette = "RdYlGn") +
+  theme_light() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + #avoir la légende des x à la verticale
+  labs(title = "Occurence des 20 espèces les moins fréquentes sur la P6", x = "Espèces", y = "Occurence")
+```
+
+Nous allons réaliser les mêmes choses sur la P11
+
+```{r importation p11}
+P11 <- read.csv("~/cours_r/Stage_M2/ParacouP11AllYears.csv", comment.char="#")
+
+#Création de la colonne Scientificname
+P11 <- P11 %>%
+  mutate(scientificName = paste(Genus, Species, sep = " "))
+
+#Création de la colonne DBH
+P11 <- P11 %>% mutate(DBH = CircCorr/pi)
+
+#nombre d'espèces
+P11 %>%
+  distinct(scientificName)
+
+#Max
+P11 %>% 
+  select(DBH) %>%
+  max()
+
+##Min
+P11 %>%
+  filter(!is.na(DBH) & DBH != 0) %>%
+  summarise(min_DBH = min(DBH))
+
+##Année
+P11 %>%
+  select(CensusYear)%>%
+  distinct()
+```
+
+On peut voir que par la suite il va
+
+Comme précédement nous allons identifier les espèces avec le plus et le
+moins d'effectif.
+
+```{r occurence P11}
+#Effectif des 10 espèces les plus présentes
+P11 %>%
+  select(scientificName) %>%
+  count(scientificName) %>%
+  arrange(desc(n)) %>% #organiser dans l'ordre décroissant
+  head(20) %>%         #sélection des 20 plus important
+  ggplot(aes(x = reorder(scientificName, -n), y = n))+ 
+  geom_bar(stat = "identity", color = "black", fill = "darkcyan") +
+  scale_fill_brewer(palette = "RdYlGn") +
+  theme_light() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + #avoir la légende des x à la verticale
+  labs(title = "Occurence des 20 espèces les plus fréquentes sur la P11", x = "Espèces", y = "Occurence")
+
+#Effectif des 10 espèces les moins présentes
+P11 %>%
+  select(scientificName) %>%
+  count(scientificName) %>%
+  arrange(desc(n)) %>%
+  tail(20) %>%
+  ggplot(aes(x = reorder(scientificName, -n), y = n))+ #organiser dans l'ordre décroissant
+  geom_bar(stat = "identity", color = "black", fill = "cyan3") +
+  scale_fill_brewer(palette = "RdYlGn") +
+  theme_light() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + #avoir la légende des x à la verticale
+  labs(title = "Occurence des 20 espèces les moins fréquentes sur la P11", x = "Espèces", y = "Occurence")
+```
+
+# VERIF TEST
+
+```{r vérif année}
+#création de la colonne DBH
+paracou_J <- paracou_J %>%
+  mutate(DBH = Circ/pi)
+
+#Sélection des années
+census_y <- paracou_J %>%
+  filter(Project == "ParacouRegeneration")%>%
+  distinct(CensusYear)%>%
+  pull
+
+#Max et min pour chaque année  
+dim_DBH <- data.frame()
+for (i in 1:length(census_y)) {
+  dim_row <- paracou_J %>%
+    filter(Project == "ParacouRegeneration" & 
+             CensusYear == census_y[[i]]) %>%
+    summarise(Max_DBH = max(DBH, na.rm = TRUE),
+              Min_DBH = min(DBH[DBH != 0], na.rm = TRUE))
+# ajout de l'année actuelle à la ligne correspondante
+  dim_row$CensusYear <- census_y[[i]]
+# ajout de la ligne avec le max et le min
+  dim_DBH <- bind_rows(dim_DBH, dim_row)
+}
+```
+
+On remarque également la présence de outliers.
