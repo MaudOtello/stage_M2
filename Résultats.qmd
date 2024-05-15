@@ -1,0 +1,161 @@
+---
+title: "Résultat"
+format: html
+editor: visual
+---
+
+```{r packages, include = F}
+library(tidyverse) # pour le langage et toutes les fonctions associées (ggplot2, dplyr...)
+library(sf)        # pour la manipulation des couches shapefiles
+library(ggspatial) # scale bars and north arrows
+```
+
+```{r importation des données, include = F}
+# ALT
+paracou_ALT <- read.csv("~/cours_r/Stage_M2/ALT_Paracou9ha_20240430.csv")
+
+## renomme le nom de colonne pour s'ajuster aux autres jeu de données
+paracou_ALT <- paracou_ALT %>% 
+  rename(scientificName = ScientificName)
+
+## on enlève les "_" de la colonnes scientificName
+paracou_ALT <- paracou_ALT %>%
+  mutate(scientificName = gsub("_", " ", scientificName))
+
+# Sélection des espèces d'intérêts
+## Création de la liste des espèces d'intérêt
+esp_6 <- c("Dicorynia guianensis", "Pradosia cochlearia", "Iryanthera sagotiana", "Qualea rosea", "Vouacapoua americana", "Jacaranda copaia")
+paracou_ALT <- paracou_ALT %>%
+  filter (scientificName %in% esp_6)
+
+# INRAE (Regeneration plot)
+Paracou_Juveniles <- read.csv("~/cours_r/Stage_M2/2024ParacouJuveniles(v2).csv", sep=";", comment.char="#")
+
+## Création d'une colonne scientificName
+Paracou_Juveniles <- Paracou_Juveniles %>%
+  mutate(scientificName = paste(Genus, Species, sep = " "))
+
+
+```
+
+# Distribution diamétrique
+
+```{r facet_wraps}
+# création du cdf
+paracou_ALT %>%
+  filter(scientificName %in% esp_6) %>%
+  select(c(DBH, scientificName)) %>%
+  na.omit() %>%
+  group_by(scientificName) %>%
+  mutate(
+    scientificName = factor(scientificName),
+    DBH = sort(DBH),
+    ord = order(DBH),
+    cdf = 1 - (ord / max(ord))) %>%
+
+  # création de l'objet ggplot
+    ggplot(aes(x = log(DBH), y = log(cdf))) +
+    geom_point(color = "grey") +
+    geom_smooth(method = "lm", color = "tomato", se = TRUE) +
+    labs(x = "log(DBH)", y = "log(Probabilité)", title = paste("Cumulative distribution function")) +
+    facet_wrap(vars(scientificName), scales = "free", ncol = 3) +
+  xlim(0, 5) +
+  ylim(-5, 0) +
+  theme_light()+
+  theme(strip.background = element_rect(fill = "black"))
+```
+
+Figure n°1 : Cumulative distribution function
+
+Tableau n°1 : Comparaison entre espèces
+
+| Espèce               | Equation de droite d'après les graphiques |
+|----------------------|-------------------------------------------|
+| Dicorynia guianensis | y = - 0.22 x + 0.8                        |
+| Pradosia cochlearia  | y = - 0.21x + 0.78                        |
+| Iryanthera sagotiana | y = - 0.3x + 0.8                          |
+| Qualea rosea         | y = - 0.31x + 0.77                        |
+| Vouacapoua americana | y = - 0.19x + 0.88                        |
+| Jacaranda copaia     | y = - 0.3x + 0.99                         |
+
+: Les équations de droites ont été extraite des graphiques antéri.
+
+**Tableau : résumé des coeficients de droites avec les intervalles de confiance**
+
+La relation linéaire a été paramétré de la façon suivante : log(cdf) \~log(dbh).
+
+R nous donne des intervalles de confiance à **5%** de risque de ne pas être dans l'IC. Il nous indique entre quoi et quoi varie ma valeur. Pour savoir de combien il varie il nous faut estimer l'erreur standart
+
+```{r droite & IC}
+# Création de la liste pour stocker les résultats
+result_list <- list()
+
+# Boucle à travers chaque espèce
+for (esp in esp_6) {
+  # Filtre données
+  ml_data <- paracou_ALT %>%
+    filter(scientificName == esp) %>% 
+    select(DBH) %>%
+    na.omit() %>%
+    mutate(DBH = sort(DBH),
+           ord = order(DBH),
+           cdf = 1 - (ord / max(ord)))
+  
+  # Modèle linéaire
+  model <- lm(log(cdf) ~ log(DBH), data = ml_data %>% filter(cdf != 0))
+  
+  # Intervalles de confiance
+  conf_intervals <- confint(model)
+  
+  # Coefficients de la droite d'équation
+  coefficients <- coef(model)
+  
+  # Erreur standard
+  std_error <- summary(model)$sigma
+  
+  # Extraire les informations
+  intercept <- coefficients[1]
+  slope <- coefficients[2]
+  lower_confint <- conf_intervals[2, 1] # 2.5% CI
+  upper_confint <- conf_intervals[2, 2] # 97.5% CI
+  
+  # Stocker les résultats dans la liste
+  result_list[[esp]] <- c(Intercept = intercept, Slope = slope, Lower_CI = lower_confint, Upper_CI = upper_confint, Std_Error = std_error)
+}
+
+# Convertir la liste en data frame
+result_df <- do.call(rbind, result_list)
+
+# Afficher le data frame
+print(result_df)
+```
+
+Nous pouvons voir que les espèces dites
+
+## Distribution spatiale
+
+```{r spatialisation, include = F}
+#rendre tableau  spatiale
+paracou_spat <- paracou_ALT %>%
+  filter (!is.na(Xutm)) %>%
+  st_as_sf(coords = c("Xutm", "Yutm"), crs = st_crs(2972)) 
+```
+
+```{r spatialisation}
+ paracou_spat %>%
+    filter(scientificName %in% esp_6) %>% #donne la position dans le vecteur
+    select(scientificName, DBH) %>%
+   ggplot() +
+    geom_sf(aes(color = DBH)) +
+    scale_color_gradient(low = "blue", high = "red") +
+    facet_wrap(vars(scientificName), ncol = 3) +
+    theme_light() +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+    labs(title = paste("Distribution spatiale en fonction du DBH"), color = "DBH", fill = "Topographie") +
+    annotation_scale(location = "bl", width_hint = 0.4) +         # échelle
+    annotation_north_arrow(location = "tr", which_north = "true", # flèche du nord
+        pad_x = unit(0.0, "in"), pad_y = unit(0.1, "in"),
+        style = north_arrow_fancy_orienteering)
+```
+
+![Localisation selon les DBH des 6 espèces d'intérêts](images/spatialisation.png)
