@@ -1,0 +1,57 @@
+---
+title: "Etude de la variable lumière"
+format: docx
+editor: visual
+---
+
+# Contexte
+
+```{r environnement de travail, include=F}
+
+```
+
+```{r Packages}
+library(tidyverse)
+```
+
+Dans l'objectif de faire un modèle bayésien, nous souhaitons mettre en place une analyse descriptive des variables environnementales que l'on souhaite étudier (G, CHM). Ce script fait suite à l'extraction de données créé par T. Gaquiert dans le document *Extraction.R*. Ce document en plus de créer les CHM sur les parcelles 1, 6 et 11, réalise le calcule de la surface terrière. L'environnement lumineux ayant un impact sur les juvéniles a été a été estimé à 15m de rayon. Chacune des observations est rattaché au centroïde de placette compris dans 5m de rayon.
+
+Ce code devrait nous permettre d'identifier
+
+A partir de ce code nous voulons :
+
+1.  Tester sur chacune des parcelles (P1, P6 et P11).
+2.  Observer au niveau des valeurs ce qu'il se passe.
+3.  A quelles points les variables CHM et G sont-elles corréles ?
+4.  Quelle est l'avantage d'utiliser l'un par rapport à l'autre ?
+5.  Est-ce que le CHM et le G sont les mêmes une années sur l'autre ?
+
+# Surface terrière
+
+La surface terrière (G) est une mesure qui nous indique la surface cumulée de l'ensemble des troncs à 1m30 du sol. Elle est exprimée en m²/ha et se calcule de la manière suivante : $$G= \sum_{i=1}^{n} \pi * \frac{D^2}{4}$$ Avec G la surface terrière en m/ha et D le diamètre en m.
+
+Elle permet d'avoir une visualisation du capital sur pied présent.
+
+Nous allons essayé de voir à quel point nos variables sont correlés.
+
+```{r correlation}
+# on peut tester les correlations
+plot(RegePlots_varEnv$sum_ST, RegePlots_varEnv$Median_CHM_2016)
+```
+
+On peut voir que ces deux variables sont positivement correlées.
+
+```{r importation var_lux, include= F}
+Var_lux <- read.csv("~/cours_r/Stage_M2/Var_lux(2004_2016).csv")
+
+Var_lux <- Var_lux[,-1] # Retrait de la colonne X inutile
+```
+
+Je souhaiterais voir la variation moyenne de la surface terrière selon les années et par parcelles.\
+\
+Commençons doucement avec le box_plot.
+
+```{r boxplot}
+bp_med <- Var_lux %>%
+  select(idRegePlot,G,nombre_tiges,Median_CHM_2016,Median_CHM_2004)
+```
