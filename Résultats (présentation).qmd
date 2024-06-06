@@ -1,0 +1,211 @@
+---
+title: "Résultats (présentation)"
+format: docx
+editor: visual
+---
+
+```{r Packages}
+library(tidyverse)
+```
+
+# Pour rappel
+
+L'étude de la tolérance à l'ombre s'est faites selon différentes techniques. Oldeman et Dijk dans leur étude en 1991 on tenté de caractériser la tolérance à l'ombre en étudiant l'architecture de l'espèce, la physiologie des feuilles et la régénération. lls intègrent à leur analyse l'ontogénie des espèces. Ainsi ils décrivent :
+
+1.  [Hard struggles]{.underline} comme des espèces ayant peu de descendance de manière peu fréquente. Elles disposent d'une tolérance à l'ombre élévé tout au long du cycle.
+2.  [Strugglers]{.underline} comme des espèces ayant peu de descendance et peu nombreuse. Les semis sont tolérantes à l'ombre, mais les stades de développement ultérieur le sont moins. Une exposition brutale à la lumière est préjudiciable
+3.  [Gambing]{.underline}
+    1.  [Gambing strugglers]{.underline} comme des espèces à grande descendance et en grand nombre. Elles ont des semi tolérant à l'ombre mais avec un peu de lumière quand même. Ils poussent très rapidement. Ils peuvent supporter d'être recouvert dans leur dernier stade du cycle de vie.
+    2.  [Struggling gamblers]{.underline} comme des espèces avec une progéniture fréquente en grand nombre. La plantule est tolérante à l'ombre mais très vite deviennent demandant à la lumière.
+4.  [Gamblers]{.underline}
+    1.  [Gamblers]{.underline} comme des espèces avec une descendance fréquente en grand nombre. Ils ne tolèrent pas du tout l'ombre dans les jeunes stades mais plus tard si.
+    2.  [Hard glambers]{.underline} comme des espèces avec une descendance fréquente et en grand nombre. C'est le cas extrême de non tolérance à l'ombre.
+
+Alors que Favrichon caractérise dans son étude en 1994 la tolérance à l'ombre à partir des caractéristiques de croissance, de leur potentialité de développement et de leur structure diamétrique. Il arrive à définir 4 groupes :
+
+1.  taxons tolérants de strates inférieure et moyenne ;
+
+2.  taxons tolérants de la voûte ;
+
+3.  taxons semi-tolérants émergents ;
+
+4.  taxons (non-tolérants) héliophiles de la voûte ;
+
+5.  taxons (non-tolérants) héliophiles de strate inférieure.
+
+En étudiant la structure diamétrique, il décrit par groupe les patrons de structure diamétrique comme suit (c.f. tableau n°II dans Favrichon 1994)
+
+-   Groupe 1 & 5 : structure diamétrique en « L redressé» avec un diamètre moyen faible
+
+-   Groupe 2 : En position intermédiaire 1+5 vs 3, structure en exponentielle décroissante régulière
+
+-   Groupe 3 : structure diamétrique « en U » avec accumulation de gros diamètres.
+
+-   Groupe 4 : irrégulière, accumulation dans certaines classes de diamètre\
+
+*/!\\ Ce qui semble confus car dans le texte il dit que les espèces des groupes 2 et 4 ont une structure exponentielle décroissante. Les espèces des groupes 1, 3, et 5 disposent d'une structure diamétrique exponentiel décroissante irrégulière (Favrichon, 1994).*
+
+Plus tard encore, nous avons l'équipe de *Wright et al* en 2003 qui explique que les espèces non-tolérante à l'ombre disposent de peu d'individus dans les premiers stades de vie (seedlings & saplings) car ils vont fortement mourir ou bien avoir une croissance rapide. Et inversement pour les tolérantes à l'ombre. Pour décrire cela certaines littérature vont parler de structures en L avec une longue queue de distribution et d'autre en U en métant en avant la présence de plusieurs individus de gros diamètre (Favrichon, 1994 ; Rollet, 1974).
+
+```{r importation, include = F}
+# ALT
+paracou_ALT <- read.csv("~/cours_r/Stage_M2/ALT_Paracou9ha_20240430.csv")
+
+## renomme le nom de colonne pour s'ajuster aux autres jeu de données
+paracou_ALT <- paracou_ALT %>% 
+  rename(scientificName = ScientificName)
+
+## on enlève les "_" de la colonnes scientificName
+paracou_ALT <- paracou_ALT %>%
+  mutate(scientificName = gsub("_", " ", scientificName))
+
+# Sélection des espèces d'intérêts
+## Création de la liste des espèces d'intérêt
+esp_6 <- c("Dicorynia guianensis", "Pradosia cochlearia", "Iryanthera sagotiana", "Qualea rosea", "Vouacapoua americana", "Jacaranda copaia")
+# paracou_ALT <- paracou_ALT %>%
+  # filter (scientificName %in% esp_6)car ajout de Virola
+
+# INRAE (Regeneration plot)
+Paracou_Juveniles <- read.csv("~/cours_r/Stage_M2/2024ParacouJuveniles(v2).csv", sep=";", comment.char="#")
+
+## Création d'une colonne scientificName
+Paracou_Juveniles <- Paracou_Juveniles %>%
+  mutate(scientificName = paste(Genus, Species, sep = " "))
+```
+
+## Non-tolérantes
+
+Concernant ***Jacaranda copaia**,* (Oldeman & Dijk, 1991) le considère comme "hard gambler" cad non-tolérante à l'ombre quelque soit le stade du cycle de vie. Ils notent également que cette espèce dispose d'un caractère pionnier. Favrichon, en 1994 considère également cette espèces comme héliophile de la voute, et précise qu'on la retrouve dans l'étage supérieur.
+
+[Description :]{.underline} Lorsque l'on observe sa distribution diamétrique, on peut voir que cette espèces dispose de peu d'individus aux jeunes stades. Mais que malgré tout il reste présent en canopée avec des individus à des diamètres supérieur à 45cm de DBH. On peut noter que certaines classe de DBH sont dépourvues d'individu créant des patchs de classes. On suppose que cela est dû à des événements passé où grâce à l'apparition d'une trouée les jeunes plantules exposée à la lumière ont pu profiter de ces conditions favorables pour croître. Puis lorsque le milieu a été de nouveau fermé, les nouvelles plantules à l'ombre sont mortes ce qui marque une absence de régénération. Au file du temps ceux qui ont été favorisé ont continué leur accroissement formant comme ci-contre des trous. Ces observations sont en concordance avec nos attentes.
+
+\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_ Virola (non étudié)\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_
+
+Au sujet de *Virola michelii,* (Favrichon, 1994) le considère comme héliophile en précisant qu'il s'agit d'un taxon de la strate supérieure à croissance très forte (en particulier pour les petits diamètres et dans les parcelles exploitées). On peut voir qu'il ne correspond pas du tout à nos attentes aux vues du grand nombre de jeunes individus.
+
+Deux choses sont à vérifier dans ce cas :
+
+1.  les capacités de régénération de cette espèces (grand nombre)
+2.  la localisation de ces juvéniles pouvant indiquer la présence de trouée dans les années précédent l'inventaire
+
+```{r non tolérante, echo = FALSE, warning=FALSE}
+# Sélection données
+paracou_ALT %>%
+  filter(scientificName %in% c("Jacaranda copaia","Virola michelii")) %>%
+# création de l'objet ggplot
+    ggplot(aes (x = DBH)) +
+    geom_histogram(breaks = seq(1, 50, by = 1 ),fill = "forestgreen") + #début à 1
+    theme_light() +
+    labs(x = "DBH", y = "Densité") +
+    facet_wrap(vars(scientificName), scales = "free", ncol = 2) +
+  theme_light()+
+  theme(strip.background = element_rect(fill = "black"))
+```
+
+## Tolérantes à l'ombre
+
+*Qualea rosea* est classé en groupe 3 par Favrichon (1994) comme semi-tolérante.
+
+*Dicorynia guianensis* est considéré par Favrichon (1994) faisant partie du groupe 3 en tant que semi-tolérante. Ce qui a pu être plus précisé par les dires d'espèrt de Sellan (2024) qui nous indique que la tolérante à l'ombre de cette espèce est moindre que celle du Wacapou. Il précise en plus la présence de plantule en lumière.
+
+*Vouacapoua americana* est décrite par Favrichon en 1994 comme faisant parti du groupe 2 qui tolère l'ombre et que l'on retrouve en étage supérieur. Sellan part son expertise de terrain nous confirme que c'est une espèces très tolérante à l'ombre (2024).
+
+Cette catégorie est discuté dans la littérature. Il semblerait que Favrichon soit une référence en terme de distinction de tolérance à l'ombre. Mais selon les travaux réalisé sur ces espèces on peut les retrouver dans d'autres catégorie. Par exemple, dans les travaux de Guitet & Brunau en 2012, pour *Qualea rosea* , ils le site en tolérante à l'ombre et pour *Vouacapoua americana* est dite sciaphile. Pour *Dicorinia guianensis,* les travaux deJesel (2005), et de Guitet & Brunaux (2012) la site comme tolérante à l'ombre. Dans les travaux de Flores et al., 2006 ils indiquent que *Qualea rosea* et *Dicorinia guianensis* sont "*light-demanding non-pioneer species"* ce qui ne concorde pas.
+
+[Description :]{.underline} L'ensemble de ces espèces présentent un grand nombre d'individus dans les premiers stades. *Qualea rosea* ainsi que *Vouacapoua america* présentent une longue queue de distribution avec des individus présent dans la majeur partie des classes de diamètre. Cela semble correspondre à un caractère de tolérance à l'ombre. Seul *Dicorynia guianensis* montre des absences de classe de diamètre par endroit. Etant donnée la littérature, bien qu'il semble y avoir des discussions le type de tolérance, on peut le voir ici que la distribution de *Dicorynia guianensis* s'écarte distinctement de celui des deux autres.
+
+```{r tolérante ombre, echo = FALSE, warning=FALSE}
+#Sélection données
+  
+paracou_ALT %>%
+  filter(scientificName %in% c("Vouacapoua americana", "Dicorynia guianensis")) %>%
+# création de l'objet ggplot
+    ggplot(aes (x = DBH)) +
+    geom_histogram(breaks = seq(1, 100, by = 1 ),fill = "forestgreen") + #début à 1
+    theme_light() +
+    labs(x = "DBH", y = "Densité") +
+    facet_wrap(vars(scientificName), scales = "free", ncol = 2) +
+  theme_light()+
+  theme(strip.background = element_rect(fill = "black"))
+```
+
+```{r qualea rosea, echo = FALSE, warning=FALSE}
+paracou_ALT %>%
+  filter(scientificName == "Qualea rosea") %>%
+# création de l'objet ggplot
+    ggplot(aes (x = DBH)) +
+    geom_histogram(breaks = seq(1, 100, by = 1 ),fill = "forestgreen") + #début à 1
+    theme_light() +
+    labs(x = "DBH", y = "Densité") +
+    facet_wrap(vars(scientificName), scales = "free", ncol = 2) +
+  theme_light()+
+  theme(strip.background = element_rect(fill = "black"))
+```
+
+# Ombre puis lumière
+
+Les dires d'experts de Molino (2024) nous décrit les deux espèces suivantes capable dans leur premier stade de vie de se développer à l'ombre puis à des stades plus avancé de vivre en lumière. Ce qui ne concorde pas avec la classification de Favrichon qui classe *Iryanthera sagotiana* et *Pradosia cochlearia* parmi le groupe 1 des tolérants à l'ombre et faisant partie de l'étage inférieur.
+
+[Description :]{.underline} La distribution diamétrique ces espèces diffèrent entre elles. Dans le cas de *Iryanthera sagotiana*, on peut voir une forte présence de jeune accompagné d'une queue de distribution continu jusqu'à la classe environ 40 cm de DBH. Ce qui se rapproche grandement des distributions d'une tolérante à l'ombre. Alors que *Pradosia cochlearia,* présente dans une moindre mesure de nombreux individus dans les premiers stade. Cette espèces semble présenter à la manière des non-tolérantes à l'ombre des absence de d'individus dans certaines classes de diamètre accentué par la présence d'un outlayer de plus de 90cm de DBH.
+
+```{r ombre puis lumière, echo = FALSE, warning=FALSE}
+#Sélection données
+paracou_ALT %>%
+  filter(scientificName %in% c("Iryanthera sagotiana", "Pradosia cochlearia")) %>%
+# création de l'objet ggplot
+    ggplot(aes (x = DBH)) +
+    geom_histogram(breaks = seq(1, 100, by = 1 ),fill = "forestgreen") + #début à 1
+    theme_light() +
+    labs(x = "DBH", y = "Densité") +
+    facet_wrap(vars(scientificName), scales = "free", ncol = 2) +
+  theme_light()+
+  theme(strip.background = element_rect(fill = "black"))
+```
+
+# Lumière puis ombre
+
+Nous ne disposons que d'une seule espèce portant cette caractéristique. Comme elle dispose que de trop peu d'individus nous avons préféré ne pas la mettre dans notre étude. Malheureusement elle est très peu présente dans notre jeu de donnée. Selon Oldeman & Dijk (1991) cette espèce au stade plantule est capable de supporter la lumière mais par la suite ça n'est plus le cas. Favrichon (1994) rejoint son raisonnement en le mettant dans un premier temps dans le groupe 4 (héliophile de la voûte), puis en précisant en commentaire qu'elle se fait rapidement surcimé et se comporte par la suite comme *Dicorynia guianensis.* Cependant, Molino affirme de son dire d'expert que cette espèce vit à la lumière toute sa vie. /!\\ T. Gaquiert à ajouter des commentaires /!\\
+
+Bien que cette espèce ne dispose que de peu de descendance on note la présence d'individus de grand diamètre.
+
+```{r lumière puis ombre, echo = FALSE, warning=FALSE}
+# Sélection données
+paracou_ALT %>%
+  filter(scientificName == "Goupia glabra") %>%
+# création de l'objet ggplot
+    ggplot(aes (x = DBH)) +
+    geom_histogram(breaks = seq(1, 50, by = 1 ),fill = "forestgreen") + #début à 1
+    theme_light() +
+    labs(x = "DBH", y = "Densité") +
+    facet_wrap(vars(scientificName), scales = "free", ncol = 2) +
+  theme_light()+
+  theme(strip.background = element_rect(fill = "black"))
+```
+
+# Conclusion et discussion
+
+L'utilisation de terminologie varié au travers de la littérature malgré les travaux réalisés, montre une absence de technique de référence qui caractérise la tolérance à l'ombre. La distribution diamétrique semble être un outil qui permet de discriminer les cas extrêmes de tolérance à l'ombre mais pas forcément celles qui se trouvent à l'interstice des deux (Rollet, 1974). Pourtant, il existe peu de cas de figure correspondant à ces extrêmes et qu'en réalité la majorité se trouve entre ces deux catégories (Wright et al*,* 2003). De plus, les résultats observés sont à confronter avec des variables spatiales pour plusieurs raisons. Par exemple, la forte présence ou l'absence d'individus peuvent résulter d'autres phénomènes écologiques dépendant de l'environnement local (Blanc et al, 2003), comme c'est le cas pour *Qualea rosea* qui entre en compétition directe avec *Dicorynia guianensis (cours Stéphane).* La présence ou non de chablis récent peut se refléter par la forte présence de juvéniles qui aux abords de trouées disposent de condition favorable à leur développement (Wright et al, 2003). L'absence/présence d'individus est fortement dépendant des capacités de dispersion de chacune des espèces (Flores, 2005).
+
+D'où la nécessité de mettre en place une technique quantitative qui discrimine les espèces de nuances variées de tolérance à l'ombre.
+
+# Bibliographie
+
+Blanc, L., Flores, O., Molino, J.-F., Gourlet-Fleury, S., & Sabatier, D. (2003). Diversité spécifique et regroupement d'espèces arborescentes en forêt guyanaise. *Revue Forestière Française*, *sp*, 131. <https://doi.org/10.4267/2042/5767>
+
+Favrichon, V. (1994). Classification des espèces arborées en groupes fonctionnels en vue de la réalisation d'un modèle de dynamique de peuplement en forêt guyanaise. *Revue d'Écologie (La Terre et La Vie)*, *49*(4), 379--403. <https://doi.org/10.3406/revec.1994.2149>
+
+Flores, O. (2005). *Déterminisme de la régénération chez quinze espèces d'arbres tropicaux en forêt guyanaise: Les effets de l'environnement et de la limitation par la dispersion* (p. 306 p.) \[Phdthesis, Université Montpellier II - Sciences et Techniques du Languedoc\]. <https://theses.hal.science/tel-00297707>
+
+Flores, O., Gourlet-Fleury, S., & Picard, N. (2006). Local disturbance, forest structure and dispersal effects on sapling distribution of light-demanding and shade-tolerant species in a French Guianian forest. *Acta Oecologica*, *29*(2), 141--154. <https://doi.org/10.1016/j.actao.2005.08.007>
+
+Guitet, S., & Brunaux, O. (2012). *Dynamique et gestion des population d'arbres en Guyane (DygePop)* (p. 48). Office National des Forêts, Direction régional de Guyane.
+
+Jesel, S. (2005). *Ecologie et dynamique de la régénération de Dicorynia guianensis (Caesalpiniaceae) dans une forêt guyanaise* \[These de doctorat, Institut national agronomique Paris-Grignon (1971-2006)\]. <https://www.theses.fr/2005INAP0008>
+
+Oldeman, R. a. A., & Dijk, J. van. (1991). Diagnosis of the temperament of tropical rain forest trees. In *Rain forest regeneration and management* (Vol. 6, pp. 21--65). <https://research.wur.nl/en/publications/diagnosis-of-the-temperament-of-tropical-rain-forest-trees>
+
+Rollet, B. (1974). *L'architecture des forêts denses humides sempervirentes de plaines*. CTFT.
+
+Wright, S. J., Muller-Landau, H. C., Condit, R., & Hubbell, S. P. (2003). Gap-Dependent Recruitment, Realized Vital Rates, and Size Distributions of Tropical Trees. *Ecology*, *84*(12), 3174--3185. <https://doi.org/10.1890/02-0038>
+
+-   dire d'expert Sellan & Molino 2024
