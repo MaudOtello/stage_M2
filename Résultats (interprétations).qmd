@@ -1,0 +1,158 @@
+---
+title: "Analyse des résultats"
+author: "Maud OTELLO"
+format: html
+editor: visual
+---
+
+# Distribution diamétrique
+
+**On réalise une comparaison de l'histogramme au cdf description des deux.**
+
+La distribution diamétrique de l'ensemble des espèces est *comme ci comme ça*. De manière générale en présence de trou sur la cdf ça se passe comme ci comme ça.
+
+La pente de
+
+Les espèces tolérante à l'ombre caractérisée par la forte présence de juvéniles est reflété par...
+
+Lorsque l'on dispose de beaucoup d'individus, on peut voir que la croissance est bien plus. Cela se reflète par des absences de trou dans la cdf.
+
+*Les individus possédant le plus grand nombre d'individus dans les plus jeunes stade sont les plus tolérante à l'ombre (). Ainsi donc on s'attend à ce qu'un coefficient de pente fort soit associé à une tolérance à l'ombre. Or il nous est possible*
+
+La présence de
+
+La comparaison des
+
+\-\-\-\-\-\-\-\-\-\-\--
+
+**Analyse de l'apport de la cdf à l'identification des tolérances à l'ombre via la distribution diamétrique.**
+
+La distinction de la tolérance à l'ombre des espèces est moins visible lorsque l'on utilise la cdf plutôt que la manière traditionnel de histogramme.
+
+L'absence d'individus dans une classe de diamètre qui caractérise la sensibilité à la lumière non-tolérance à l'ombre, est aussi bien visible dans l'histogramme que au niveau de la cdf. Cependant, l'application d'une échelle logarithmique vient atténuer cette un peu tout cela. La visualisation d'accumulation dans certaines classes de diamètre peut se traduire par une non linéarisation de notre cdf (*Pradosia cochlearia* accumulation à log(50) = 3.9 ; ). Et visible par des intervalles de confiance plus conséquentes. Plus elle est grande plus on s'écarte que quelque chose de linéaire. *Néanmoins elle peut résulter d'autres choses...*
+
+La très forte présence de gros diamètre ne permet pas lorsqu'il s'agit d'histogramme de vérifier la présente de gros individus. L'échelle conditionne la visibilité des grands (*Qualea rosea*). Ce qui n'est pas le cas dans la cdf où quelquelle soit le nombre d'individus il nous est possible d'identifier la présence des grands. La cdf donne un graphe proportionnel où toutes les espèces disposent de la même échelle.
+
+Cependant la présence de gros conditionne grandement l'allure de la courbe. Plus il existe d'espèce à grand diamètre, plus le coefficient de pente est faible et inversement. Ainsi pour une même tolérance à l'ombre il est possible de voir deux pentes différentes (*Qualea rosea & Vouacapoua americana, fig n°*).
+
+Même si l'ajustement de la courbe est meilleure avec une transformation logarithme, la perte d'information sur la caractérisation à la tolérance à l'ombre en est préjudiciable dans la conclusion à apporter vis-à-vis du tempérament ?
+
+La variance du coefficient de courbe nous permet de réaliser ce classement du meilleur ajustement : Qualea rosea \> Dicorynia guianensis \> Iryanthera sagotiana \> Pradosia cochlearia \> Jacaranda coapaia \> Vouacapoua americana.
+
+La technique de la cdf n'exacerbe pas assez les éléments d'identification de la tolérance.
+
+s'est avéré bien adapté aux données
+
+**Le classement des espèces selon leur coeficien de courbe ne permet pas de trouver la tolérence à l'ombre :** Vouacapoua americana \< Pradosia cochlearia \< Dicorynia guianensis \< Jacaranda copaia \< Iranthera sagotiana \< Qualea rosea.
+
+Il semble en revanche traduire la possibilité pour une espèce de disposer d'individus en grand âge, et d'un nombre conséquen dans la pobelalabl
+
+[**Interprétation**]{.underline}
+
+**Elle s'aligne avec nos attentes ou pas ?**
+
+Au niveau des histogrammes il est possible de voir pour les espèces considérées comme tolérante semble concorder avec les attentes pour les espèces des espèces dites tolérantes à l'ombre que sont *Vouacapoua americana* et *Dicorynia guianensis*. Néanmoins chaque espèce ne dispose pas de structure diamétrique en tout point similaire.
+
+**Et dans quelle mesure la cdf nous permet-elle de caractériser ces premières observations ?**
+
+La cdf permet de mieux visualiser la partie de la courbe où il se créer la cassure. Plus elle est prononcé, plus sur le coefficient de pente va être prononcé. Il peut servir à discriminer les espèces possédant un fort taux de juvéniles de ceux qui en ont moins. Les individus possédant le plus grand nombre d'individus dans les plus jeunes stade sont les plus tolérante à l'ombre (). Ainsi donc on s'attend à ce qu'un coefficient de pente fort soit associé à une tolérance à l'ombre. Or il nous est possible
+
+L'avantage d'avoir cette cdf c'est que nous pouvons comparer avec des échelles qui sont sensiblement les mêmes.
+
+L'utilisation de droite de régression nous permet ici de pouvoir comparer de manière chiffrer ces différents comportements. Et de tester statistiquement s'ils sont similaires ou non.
+
+Néamoins, l'apport de cette technique est discutable. Car pour une même tolérance à l'ombre estimé la visualisation graphique peut nous tromper. La cdf est très sensible aux stratégies de reproduction (grand nombre de plantule). Mais aussi à la présence ou non d'individus de grande classe. On peut le voir notamment avec *Dicorynia guianensis* qui dispose de diamètre proche de 100 qui a un coefficient de courbe qu'on pourrait qualifier de modérer. Alors qu'à l'inverse, sur *Iryanthera sagotiana*, nous disposons d'une courbe au coefficient prononcé qui semble être liée à l'absence de
+
+En fait la comparaison en terme de courbe nous fait perdre beaucoup trop d'information qui nous permet de caractériser si les espèces sont tolérantes à l'ombre ou non.
+
+# **Comparaison de courbe**
+
+Elle peut se faire que si **que si les variances résiduelles des deux séries ne sont pas significativement différentes l'une de l'autre**.
+
+Alors lorsque une espèces possèdent une distribution diamétrique en L on devrai avoir un coefficient de droite très forte.
+
+# II- Description et comparaison des cdf, équation de droite
+
+J'aimerai faire une comparaison de droite pour savoir s'il d'abord elles sont significativement différentes avec une analyse de la variance des coefficien de droite où l'hypothèse nulle serait :
+
+H0 : la droite est significativement différente de 0. On pourrait réaliser un [test de F]{.underline} deux à deux, ANOVA ou même un [modèle combiné]{.underline}
+
+Et une seconde analyse qui me permettrait de faire une comparaison de coefficien entre les courbes : [Les comparaisons peuvent se faire que si variances résiduelles des deux séries sont homogènes (pas de différence significative entre elles)]{.underline} Ce qui, je pense, n'est absolument pas le cas.
+
+[Analyse de la variance](http://psjpa.free.fr/regression/test_pente.htm#1) [du coeficient de droite.]{.underline}
+
+Mise en place de l'analyse des courbes entre elles [site utile](http://psjpa.free.fr/regression/comparaison.htm).
+
+Analyse de la variance résiduelle
+
+# Espèce par espèce
+
+## Dicorynia guianensis
+
+[Histogramme :]{.underline} Cette espèce est capable d'avoir des individus jusqu'à 100cm de diamètre. Par endroit \[45 ; 80\] il y a des manques d'individus. Cette spécificité là se rapproche du caractère héliophile avec beaucoup d'individus en jeune stade puis très peu avec des lacunes. Sur cette espèce la majorité s'accordent à dire qu'elle est tolérante à l'ombre *(Guitet & Brunaux, 2012 ; Jesel, 2005)* tant dise de certain la classe dans les **semi-tolérant** (Favrichon, 1994).
+
+[CDF :]{.underline} On peut voir que ça décroit assez rapidement. Il possède des individus de gros diamètre ce qui on peut supposer limite cette décroissance massive.
+
+**La spatialisation :** L'ensemble des petits se trouvent proches des grands individus.
+
+Comme ce à quoi on s'attendais, en tant que tolérant à l'ombre on a quelque chose d'irrégulier. C'est bien le cas, nous avons des sauts où il n'y a aucun individus. Au nieau
+
+## Iryanthera sagotiana
+
+*Dans notre zone d'étude cette espèces présente des individus à chaque classe de diamètre jusqu'à 30 de diamètre. La littérature nous informe qu'elle se situe généralement en **étage inférieur et est tolérante à l'ombre** (Moreno, 2022). Au niveau de la distribution diamétrique on peut voir que elle bénéficie d'une grande quantité de jeunes individus.*
+
+Graphe 0 : On peut voir que il y a plusieurs petit et que ça s'arrête à 30cm de diamètre. Il n'est
+
+Graphe 1 : On peut voir que ça décroit encore plus vite Mais il a égalent moins de gros individus qui vont permettre de ralentir la décroissance.
+
+**La spatialisation** : Il dispose d'énormément de jeunes individus. Ils ont l'air de se répartir qu'importe la présence ou non d'adulte. De pente...
+
+## Jacaranda copaia
+
+*D'après (Oldeman & Dijk, 1991) cette espèces a un comportement de type **hard gambler** cad qu'il se développe toute sa vie qu'en zone de lumière. Sa cdf semble très rectiligne.*
+
+Graph 1 Alors lui il possède peu de grand individus. On a quelque chose de moins décroissant.
+
+**La spatialisation** : Il y a peut d'individus un peu compliquer de voir selon quoi ils se répartissent. Les adultes se trouvent un peu partout mai
+
+## Pradosia cochlearia
+
+*D'après nos dire d'expert on peut voir que cette espèce est du **type émergent**. Elle a tendance à se développer à **l'ombre puis à la lumière au stade adulte** (Molilno 2024). Sur nos graphiques comme attendue elle présente une grande majorité en juvéniles mais néanmoins elle possède des individus de gros diamètre.*
+
+Graph 1 Alors lui il décroit moyennement vite. Il possède également de grand individus.
+
+**La spatialisation** : On peut voir qu'il y a sur la partie Est plusieurs adultes, mais pourtant les jeunes
+
+## Qualea rosea
+
+*La litérature nous indique qu'elle est une espèce qui **tolère l'ombre et qui est émergente en canopée** (Guitet & Brunaux, 2012). Or d'après nos observation cette espèce ne dispose qu'uniquement d'individus de faible diamètre. **Attention car il a un comportement que\... Revoir commentaire de Thomas Gaquiert.***
+
+Graph 1 On peut voit que cette espèce dispose de tout autant d'individus dans les jeunes stades que dans l'ensemble
+
+**La spatialisation** : Ben il y a plein plein d'adulte et plein plein de jeune. On peut voir uq
+
+## Vouacapoua americana
+
+*D'après la littérature cette espèce est dite **sciaphile** (Guitet & Brunaux, 2012). Cette espèce présente des individus en tout âge avec une très grosse majorité en petit diamètre, présence de plot.*
+
+Graph 1 On peut voir que la courbe décroit très très peu. Que il a peu d'individus de grande taille.
+
+**La spatialisation** : Il y a beaucoup de de grand individus qui sont tous proche des juvénils.
+
+Pourquoi Wacapou a le coef de pente le plus faible alors qu'on s'attendais à l'inverse :
+
+# Après discussion avec Vincyane
+
+[L'objectif ici est de proposer un outil quantifiable permettant d'étudier la tolérance à l'ombre au cours du cycle ontongénique de l'espèce.]{.underline}
+
+La principales technique d'identification de la tolérance à l'ombre est dans un premier temps les dire d'expert, puis l'étude des distributions diamétriques. Parmis les définitions de tolérance à l'ombre nous disposons.
+
+La première se propose à l'aide d'équation de droite de discriminer les individus à forte régénération VS leur gros diamètre. On s'attend à ce que les espèces à forte régénération dispose d'un
+
+La première a pour avantage de pouvoir permettre de comparer la proportion des jeunes individus à celles des grandes en considérant l'ensemble des diamètres. L'étude d'une proportion permet de manière plus visuelle de comparer entre elles les différents tempérament. De plus l'absence de classe de diamètre, permettrait de comparer entre différents forêts les résultats obtenue. L'utilité de ce type de méthode est qu'il nous suffirait d'étudier un unique individus sur l'ensemble de son cycle de vie. Il n'empêche que la réalisation d'inventaire exhaustive n'est pas évident non plus. Cette méthode apporte un point de vue globale sur la tolérance et ne permet pas de manière exhaserber de discriminer la capacité à tolérer ou non.
+
+La seconde méthode nous permet certes d'étudier explicitement la distribution des espèces selon un facteur lumière. Mais l'interprétation des résultats ne nous permet pas d'extrapoler à autre chose que notre jeu de données à nous. CAD que les probabilités apporté par le modèle bayésien nous permets d'interpréter que parmi les espèces étudier. La mise en place de ce type de méthode est contraignante dans la mesure où elle oblige à réaliser un inventaire sur un grand nombre d'espèces.
+
+Ainsi donc, les deux modèles proposées ne nous proposons d'étudier tout cela sous forme linéaire alors que la réponse à l'environnement est loin du monde linéaire. *En tout cas c'est que semble dire Barolo en sitant (Armstrong et McGehee 1980, Chesson 2000).*
+
+En réalité c'est absurde ne serait-ce que d'avoir essayé car en réalité
