@@ -1,0 +1,155 @@
+---
+title: "BD_esp (exploration)"
+format: docx
+editor: visual
+---
+
+Ce script a pour objectif de faire une description brèves des données espèces dont nous disposons.
+
+```{r Packages}
+library(Rmisc)     # Pour summarySE
+library(tidyverse) # Pour langage et packages associés
+```
+
+```{r Importation, include = F}
+Juveniles <- juveniles_P1_6_11.csv
+Placettes
+juveniles_P1_6_11_corr
+guyafor_fin == BD_env
+```
+
+# Description des juveniles
+
+Nous pouvons voir que pour toutes années confondues, pour l'ensemble des espèces nous avons 5 645 individus.
+
+Au total nous comptons 64 placettes par parcelles soit 192 placettes.
+
+```{r juvenile_boxplot}
+juveniles_P1_6_11 %>%
+  ggplot(aes(y = DBH, x = as.factor(CensusYear), fill = Plot))+
+  geom_boxplot()+
+  theme_linedraw()+
+  labs(
+    x = "Année",
+    y = "DBH (en cm)") +
+      facet_wrap(vars(Plot)) +
+  theme(strip.background = element_rect(fill = "black"))+
+  theme(axis.text.x = element_text(angle = 30, hjust = 1))
+  
+# Faisons parler les chiffres
+Juveniles_df <- summarySE(juveniles_P1_6_11, measurevar="DBH",groupvars=c("Plot","CensusYear"))
+
+```
+
+C'est étrange sur certaines parcelles nous pouvons noter la présence de outlayer jusqu'à 25cm de DBH alors que l'année qui suit ça n'est pas le cas. Nous pouvons également voir qu'à l'année 2003 pour les placettes 1 & 6 il n'y a pas de relevé. De même que dans la parcelle 11, pour les années 2003 et 2008 il y a un décallage net sur les DBH observés.
+
+**/!\\ mettre de côté les analyses de 2003. /!\\**
+
+Au niveau du nombre total de juveniles, toutes années confondues, nous sommes à P1 = 582, P6 = 455, P11 = 923. La P11 a quasiment le double d'individus ! Intéressant de voir la distribution de l'ensemble de ces données.
+
+## Diamètre corrigée
+
+Lors du protocole, à l'année N+1, nous avons pu voir que certains individus disposent de DBH\<1 cm. Cela a pu être expliqué par la présence de blessures. Notre étude s'intéresse à la compétition à la lumière. En incluant ces erreurs cela influencerait les résultats relier à la lumière. Pour pallier, nous proposons à l'aide du package *treed::DiameterCorrect* (Bodouard et al, 2022), pour nous permettre d'appliquer une correction sur les diamètres aux valeurs abérantes.
+
+```{r}
+juveniles_P1_6_11_corr <-juveniles_P1_6_11_corr %>%
+  rename(DBH_corr = Diameter_TreeDataCor)
+```
+
+```{r}
+juveniles_P1_6_11_corr %>%
+  ggplot(aes(y = DBH_corr, x = as.factor(Year), fill = Plot))+
+  geom_boxplot()+
+  theme_linedraw()+
+  labs(
+    x = "Année",
+    y = "DBH (en cm)") +
+      facet_wrap(vars(Plot)) +
+  theme(strip.background = element_rect(fill = "black"))+
+  theme(axis.text.x = element_text(angle = 30, hjust = 1))
+
+# De manière chiffrée
+Juveniles_corr <- summarySE(juveniles_P1_6_11_corr, measurevar="DBH_corr",groupvars=c("Plot","Year"))
+```
+
+Il y a des choses très bizarres dans ces données on peut voir que il y a 800 individus rien que dans la parcelle 11 à l'année 2008. C'est hyper chelou.
+
+Dans les correction de diamètre, il détecte 4 anomalies persistantes : 282849, 285609, 285710, et 285831.
+
+On s'attendrait à avoir des intervalles de confiance plus petit avec des diamètres corrigés, ce n'est pas forcément le cas. Nous constatons qu'il existe encore des DBH\<1 cm.
+
+```{r}
+juveniles_P1_6_11_corr %>%
+  filter(!IdTree %in% c(282849, 285609, 285710, 285831)) %>%
+  summarize(min_DBH_corr = min(DBH_corr, na.rm = TRUE))
+
+juveniles_P1_6_11_corr %>%
+  filter(!IdTree %in% c(282849, 285609, 285710, 285831)) %>%
+  summarize(min_DBH_corr = max(DBH_corr, na.rm = TRUE))
+```
+
+Les valeurs sont abérantes, même corrigée nous nous trouvons avec des intervalles de DBH et même en retirant les arbres identifiée comme problématiques : 24.2 et 0.09. C'est pas du tout normale d'avoir des arbres \< 1cm à ce moment de correction.
+
+*Vincyane va m'engueler mais bon si j'arrive à faire tourner sur ALT eh bien espérons que ça soit presque pardonée. J'ai essayé de les prévenir en disant que c'était bizarre mais oui c'était à moi de bien regarder.*
+
+**/!\\ faire une analyse sur les données ALT également. /!\\**
+
+Voyons voir le nombre d'arbre que ça correspond ces diamètres \< 1cm : 1650 individus. Et pour DBH \> 10 : 56 individus. Cela représente près de 1/3 des valeurs de notre base de données. Pour moi c'est beaucoup trop conséquent pour pouvoir établir des analyses dessus.
+
+```{r DBH_extrême}
+juveniles_P1_6_11_corr %>%
+  filter(DBH_corr < 1)%>%
+  nrow()
+
+juveniles_P1_6_11_corr %>%
+  filter(DBH_corr > 10)%>%
+  nrow()
+
+```
+
+# Adultes
+
+Maintenant on va regarder au niveau des adultes comment ça se répartie un peu.
+
+```{r}
+Adultes_P1_6_11 %>%
+  ggplot(aes(y = DBH, x = as.factor(CensusYear), fill = Plot))+
+  geom_boxplot()+
+  theme_linedraw()+
+  labs(
+    x = "Année",
+    y = "DBH (en cm)") +
+      facet_wrap(vars(Plot)) +
+  theme(strip.background = element_rect(fill = "black"))+
+  theme(axis.text.x = element_text(angle = 30, hjust = 1))
+  
+# Faisons parler les chiffres
+Adultes_df <- summarySE(Adultes_P1_6_11, measurevar="DBH",groupvars=c("Plot","CensusYear"))
+
+```
+
+Ici, tout est uniforme. Il ne semble pas y avoir de valeurs abbérantes. Les années 2003 sont bien référencées. Voyons voir les DBH extrêmes DBH_max : 137,51 cm et un seul individus \< 10 de DBH.
+
+```{r}
+max(Adultes_P1_6_11$DBH)
+min(Adultes_P1_6_11$DBH)
+
+# Nombre abbérant
+Adultes_P1_6_11 %>%
+  filter(DBH < 10)%>%
+  nrow()
+```
+
+# Description de l'ensemble
+
+Notre étude s'étends sur 8 années sur les parcelles 1, 6, et 11. Nous comptons un totale de 13 726 individus.
+
+Maintenant j'aimerai voir par année et par plot le nombre d'individus que j'ai, le DBH moyen des trucs comme ça;
+
+```{r}
+G_summary <- summarySE(Guyafor_fin, measurevar="DBH",groupvars=c("Plot","CensusYear"))
+
+G_summary_esp <- summarySE(Guyafor_fin, measurevar="DBH",groupvars=c("Plot","CensusYear", "scientificName"))
+```
+
+Et par espèces

@@ -1,0 +1,232 @@
+---
+title: "BD_esp"
+author: "Maud"
+date: "2024-06-07"
+output: word_document
+---
+
+Ce script fait suite au document **Extraction.rmd**. Il a pour objectif de mettre en place une matrice de présence-absence des espèces pour faire tourner nos modèles. Cette matrice sera sous deux formes. Une pour évaluer l'impacte de la surface terrière (toutes les années), l'autre pour les CHM (années LiDAR).
+
+```{r environnement de travail, include = F}
+setwd("C:/Users/Maud Otello/Documents/cours_r/Stage_M2")
+```
+
+```{r Packages}
+library(tidyverse) # Pour le langage et les fonction associées
+library(sf)        # Pour manipuler les shp
+library(dplyr)     # car par idnavertance désactivé
+library(data.table)# le package des fonctions
+```
+
+Dans un premier temps, une ligne = 1 individu. Pour se faire il nous faut réaliser une jointure entre les placettes, et les arbres. Notre modèle réalisera ces probabilités que sur les juvéniles et les arbres adultes contenue dans les 5m de rayons de placette.
+
+## Juveniles
+
+Maintenant nous allons vérifier que les subplots correspondent bien pour les Juveniles (DBH \< 10cm).
+
+```{r importation Juveniles, include = F}
+Guyafor_Juveniles <- read.csv("~/cours_r/Stage_M2/2024ParacouJuveniles(v2).csv", sep=";", comment.char="#")
+```
+
+```{r Juveniles}
+# Création d'une colonne scientificName
+Juveniles <- Guyafor_Juveniles %>%
+  mutate(scientificName = paste(Genus, Species, sep = " "))
+
+# Création d'une colonne DBH
+Juveniles <- Juveniles %>%
+  mutate(DBH = Circ/pi)
+
+# Application des filtres
+Juveniles <- Juveniles %>%
+  filter(!is.na(Xutm) & 
+    Plot %in% c(1, 6, 11) & 
+    CodeAlive == 1) %>%
+  st_as_sf(coords = c("Xutm", "Yutm"), 
+           crs = st_crs(2972)) 
+
+# vérifier qu'on ne "perde" pas d'arbres en route! (pour les autres parcelles et les autres années)
+length(Juveniles$idTree)
+```
+
+Maintenant localisons les juvéniles dans leurs bonnes placettes.
+
+```{r environnement de travail, include = F}
+# changer temporairement d'environnement de travail pour récup fichier
+setwd("C:/Users/Maud Otello/Documents/cours_r/Stage_M2/Cartographie")
+
+#importation des fichiers
+Placettes <- st_read('RegenerationPlots.shp')
+```
+
+```{r juveniles_P1_6_11}
+# Sélection des centres 'réels' 
+PlacettesP1_6_11 <- Placettes %>% 
+  filter(Plot %in% c(1,6,11) &
+           CoordType == 'RealCoord')  
+
+# Réajustement du crs 
+st_crs(PlacettesP1_6_11) <- st_crs(2972) 
+
+# buffer 5m autour du centre des placettes 
+PlacettesP1_6_11_buffer5m <- st_buffer(PlacettesP1_6_11,5)  
+
+# Fusion des placettes aux Juveniles
+juveniles_P1_6_11 <- st_intersection(PlacettesP1_6_11_buffer5m, Juveniles)
+
+# Pas besoin de la spatialisation anymore + Guyafor pas 2002
+juveniles_P1_6_11 <- juveniles_P1_6_11 %>%
+  filter(CensusYear != 2002)%>%
+  st_drop_geometry() # Geometry inutile à présent, retour à un tibble
+
+# Création d'un data.frame
+#write.csv(juveniles_P1_6_11,file ="juveniles_P1_6_11.csv")
+```
+
+Alors on peut voir qu'il existe une très grande différence de variation entre les parcelles. Il existe quand même une grande différence observation entre les 3 parcelles sur l'ensemble des années P1 = 582, P6 = 455, P11 = 923. La P11 a quasiment le double d'individus ! Intéressant de voir la distribution de l'ensemble de ces données.
+
+## Correction des diamètres
+
+Lors du protocole, à l'année N+1, nous avons pu voir que certains individus disposent de DBH\<1 cm. Cela a pu être expliqué par la présence de blessures. Notre étude s'intéresse à la compétition à la lumière. En incluant ces erreurs cela influencerait les résultats relier à la lumière. Pour pallier, nous proposons à l'aide du Package treed::DiameterCorrect (Badouard et al, 2022) pour nous permettre d'appliquer une correction sur les diamètres aux valeurs abérantes.
+
+```{r fonctions}
+source("C:/Users/Maud Otello/Documents/cours_r/Stage_M2/script/DiameterCorrection.R")
+
+source("C:/Users/Maud Otello/Documents/cours_r/Stage_M2/script/UniqueMeasurement.R")
+
+source("C:/Users/Maud Otello/Documents/cours_r/Stage_M2/script/GenerateComment.R")
+
+source("C:/Users/Maud Otello/Documents/cours_r/Stage_M2/script/PunctualErrorDetection.R")
+
+source("C:/Users/Maud Otello/Documents/cours_r/Stage_M2/script/ComputeIncrementation.R")
+
+source("C:/Users/Maud Otello/Documents/cours_r/Stage_M2/script/RegressionInterpolation.R")
+
+source("C:/Users/Maud Otello/Documents/cours_r/Stage_M2/script/Select2FramingValues.R")
+
+source("C:/Users/Maud Otello/Documents/cours_r/Stage_M2/script/Individual Diameter Shift Correction.R")
+
+source("C:/Users/Maud Otello/Documents/cours_r/Stage_M2/script/Correction of 2 diameter values.R")
+```
+
+```{r DBH_corr}
+juveniles_corr <- juveniles_P1_6_11 %>%
+  select(Plot, idTree,scientificName, DBH,CensusYear,POM,CodeAlive)
+
+colnames(juveniles_corr) <- c("Plot","IdTree", "ScientificName_TreeDataCor", "Diameter", "Year", "POM","LifeStatus")
+  
+juveniles_corr <- juveniles_corr %>%
+  mutate(
+  IdTree = as.character(IdTree),
+  ScientificName_TreeDataCor = as.character(ScientificName_TreeDataCor),
+  Diameter = as.numeric(Diameter),
+  Year = as.factor(Year),
+  POM = as.numeric(POM)
+)
+  
+juveniles_P1_6_11_corr <- DiameterCorrection(juveniles_corr, NegativeGrowthThreshold = 0,
+                   WhatToCorrect = c("punctual", "shift"),
+                   CorrectionType = c("individual"), 
+                   DBHCorForDeadTrees = F)
+# exportation
+#write.csv(juveniles_P1_6_11_corr, file = "juveniles_P1_6_11_corr.csv")
+```
+
+Les résultats du diamètre corriger est extrêmement chelou.
+
+## Adultes
+
+On veut qu'il nous filtre tous les arbres présents aux seins de nos placettes de 5m de rayon (PlacetteP1_6_11_buffer5m). Normalement lorsque je fais une intersection il me prend que ce qui se superpose (à vérifier).
+
+```{r importation Guyafor, include = F}
+P1 <- read.csv("~/cours_r/Stage_M2/ParacouP1AllYears.csv", comment.char="#")
+P6 <- read.csv("~/cours_r/Stage_M2/ParacouP6AllYears.csv", comment.char="#")
+P11 <- read.csv("~/cours_r/Stage_M2/ParacouP11AllYears.csv", comment.char="#")
+
+# Fusion des parcelles
+Guyafor <- rbind(P1,P6,P11)
+```
+
+```{r Adulte}
+# Création d'une colonne scientificName
+Adultes <- Guyafor %>%
+  mutate(scientificName = paste(Genus, Species, sep = " "))
+
+# Création d'une colonne DBH
+Adultes <- Adultes %>%
+  mutate(DBH = Circ/pi)
+
+# Application des filtres
+Adultes <- Adultes %>%
+  filter(!is.na(Xutm) & 
+    Plot %in% c(1, 6, 11) & 
+    CodeAlive == 1 &
+    CensusYear %in% c(1992, 1993, 1995, 2003, 2005, 2008, 2013, 2016)) %>%
+  #géolocalisation de guyafor
+  st_as_sf(coords = c("Xutm", "Yutm"), 
+           crs = st_crs(2972)) 
+
+# fusion 
+Adultes_P1_6_11 <- st_intersection(PlacettesP1_6_11_buffer5m, Adultes)
+
+# Pas besoin de la spatialisation anymore
+Adultes_P1_6_11 <- Adultes_P1_6_11 %>%
+  st_drop_geometry() 
+```
+
+## Fusion de l'ensemble
+
+```{r Adultes & Juveniles}
+# Sélection des colonnes d'intérêts
+Adultes_fin <- Adultes_P1_6_11 %>%
+select(CensusYear, Plot, idRegePlot, idTree, scientificName, DBH)
+
+Juveniles_fin <- juveniles_P1_6_11 %>%
+  select(CensusYear, Plot, idRegePlot, idTree, scientificName, DBH)
+
+# Combinaison
+Guyafor_fin <- rbind(Juveniles_fin, Adultes_fin)
+```
+
+# Matrice
+
+Pour la création de notre matrice, nous allons partir d'un data.frame qu'on passera sous un format long. On aura en colonne les espèces et en ligne soit une présence (1), soit une absence (0). Nous considérons la présence de notre espèce *S* dans le pool d'étude. Il représente pour chaque individu *S* leur présence 1 et 0 pour toutes les autres espèces (pseudo-absence).
+
+```{r guyafor_matrice}
+#Création de la matrice avec pivot_wider
+Guyafor_matrix <- Guyafor_fin %>%
+  group_by(CensusYear, Plot, idRegePlot, idTree, DBH, scientificName) %>% #pour que chaque ligne soit unique
+  dplyr::summarise(presence = ifelse(n() > 0, 1, 0)) %>% # ajout d'un numéro 1 si présence et d'un 0 si pas, n() représente le comptage par ligne 
+  pivot_wider(
+    names_from = scientificName,
+    values_from = presence,
+    values_fill = 0) %>%
+  ungroup()
+
+Guyafor_matrix <- Guyafor_matrix %>%
+  dplyr::mutate(id = row_number()) # nécessité d'un numéro d'observation
+
+#création de la matrice
+Guyafor_matrix <- Guyafor_matrix %>%
+  mutate(across(all_of(esp_6), as.integer)) # transformation en entier les colonnes spécifiées dans esp_6
+```
+
+# Exportation
+
+Maintenant que la matrice est crée, il ne nous reste plus qu'à exporter selon le types de données environnementale. Pour la sélection des dates CHM par rapport au lidar : if_esle(CensusYear,N,N+1).
+
+*BD = Base de donnée*
+
+```{r BD_esp}
+# Pour le CHM
+BD_esp_CHM <- Guyafor_matrix %>%
+    filter (CensusYear %in% c(2008,2013,2016))
+
+# Retrait année 2003 car anomalie
+BD_esp_G <- Guyafor_matrix %>%
+  filter(CensusYear != 2003)
+  
+# Création .csv
+#write.csv(BD_esp_G, file = "BD_esp_G.csv")
+#write.csv(BD_esp_CHM, file = "BD_esp_CHM.csv" )
+```
