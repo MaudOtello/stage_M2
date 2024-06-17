@@ -1,0 +1,778 @@
+---
+title: "Modèle bayesien (simulation)"
+author: "Maud OTELLO"
+date: "2024-06-12"
+output: word_document
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+*Ce script à pour objectif de mettre en place notre modèle bayésien en
+utilisant des cas concrêt où l'on connait le résultat. Il est associé au
+document xls qui résume sur quoi nous avons fait tourner, les modèles
+utilisées...*
+
+***!** Ce script n'a pas été fait dans un ordre chronologique donc il
+peut y avoir des explications à postériori. **!***
+
+*\_pred : modèles contenant les prédictions*
+
+```{r packages}
+library(tidyverse) #pour langage tidyvers, ggplot2, purrr
+library(rstan)     #pour faire tourner les fichiers R
+library(bayesplot) #pour les graphes posterieurs
+library(gridExtra) #pour faire apparaître 2 graphes côte à côte
+library(dplyr)     #car masquer juste avant
+```
+
+# *fit_JQ_1*
+
+*Voir les abondances initiales, est-ce qu'on a bien Qualea en grande
+quantité et Jacaranda en plus petite ?*
+
+```{r importation_JQ_1, include = False}
+# Si modèle pas tournée
+BD_JQ <- read.csv("~/cours_r/Stage_M2/BD_JQ.csv", row.names=1)
+
+BD_JQ_G <- read.csv("~/cours_r/Stage_M2/BD_JQ_G.csv", row.names=1)
+
+# Si modèle déjà tournée
+fit_JQ_1 <- read_rds("~/cours_r/Stage_M2/Bayesien_save/fit_JQ_1.rds")
+```
+
+```{r fit_JQ_1}
+# Nombre d'observations
+N = BD_JQ %>%
+  nrow()
+
+# Nombre d'espèces
+S = 2
+
+# Comptenue de la matrice présence absence
+y = BD_JQ %>%
+  select(-all_of(c("id", "DBH","Plot","CensusYear","idRegePlot","idTree")))
+
+# Compilation du modèle
+#fit_JQ_1 = stan("m_multinomial.stan", data = list(N = N, y = y, S = S), iter = 1000, chains = 4)
+
+#Convergence du modèle
+traceplot(fit_JQ_1)
+summary(fit_JQ_1, pars = "theta")
+
+#Distribution à posteriori
+mcmc_trace(fit_JQ_1)
+
+#sauvegarde
+saveRDS(fit_JQ_1, file = "fit_JQ_1.rds")
+```
+
+*Ce premier modèle va servir par la suite comme prior nous allons donc
+le faire tourner sur l'ensemble des données. Le nom des colonnes a été
+changé mais on va s'adapter.*
+
+```{r importation_BD_esp}
+# Variable à expliquer
+BD_esp_G <- read.csv("~/cours_r/Stage_M2/BD_esp_G.csv", row.names=1)
+
+# Arrangement de l'ordre des colonnes
+BD_esp_G <- BD_esp_G %>%
+  select(id,idRegePlot,idTree,CensusYear,Plot,DBH, X1,X2,X3,X4,X5,X6)
+# Modèle
+fit_alpha <- read_rds("~/cours_r/Stage_M2/Bayesien_save/fit_alpha.rds")
+```
+
+*--- Nom des colonnes "Iryanthera sagotiana" = X1, "Qualea rosea" = X2,
+"Vouacapoua americana" = X3, "Pradosia cochlearia" = X4, "Jacaranda
+copaia" = X5, "Dicorynia guianensis" = X6 ---*
+
+*Maintenant faisons tourner notre modèle*
+
+```{r fit_alpha}
+# Nombre d'observations
+N = BD_esp_G %>%
+  nrow()
+
+# Nombre d'espèces
+S = 6
+
+# Comptenue de la matrice présence absence
+y = BD_esp_G %>%
+  select(-all_of(c("id", "DBH","Plot","CensusYear","idRegePlot","idTree")))
+
+# Compilation du modèle
+fit_alpha = stan("m_multinomial.stan", data = list(N = N, y = y, S = S), iter = 1000, chains = 4)
+
+# Convergence du modèle
+traceplot(fit_alpha)
+summary(fit_alpha, pars = "theta")
+
+# Distribution à posteriori
+mcmc_trace(fit_alpha)
+
+# Sauvegarde
+saveRDS(fit_alpha, file = "fit_alpha.rds")
+
+# Extration theta
+# récupérer les generate_quantities + Calcule de la moyenne
+alpha_esp <- apply(extract(fit_alpha)$theta , 2, mean)
+
+print(alpha_esp)
+```
+
+# *fit_JQ_2*
+
+```{r importation_JQ_2, include = F}
+fit_JQ_2 <- read_rds("~/cours_r/Stage_M2/Bayesien_save/fit_JQ_2(v4).rds")
+```
+
+*Est-ce qu'on a bien l'espèce en canopée avec une plus forte probabilité
+que celle qui n'atteint pas la canopée ? En 1 = Jacaranda et en 2 =
+Qualea*
+
+```{r fit_JQ_2}
+# Nombre d'observations
+N = BD_JQ %>%
+  nrow()
+
+# Nombre d'espèces
+S = 2
+
+# Comptenue de la matrice présence absence
+y = BD_JQ %>%
+  select(-all_of(c("id", "DBH","Plot","CensusYear","idRegePlot","idTree")))
+
+x = BD_JQ_G %>%
+  pull(DBH)
+
+# Compilation du modèle
+#fit_JQ_2 = stan("DM1.stan", data = list(N = N, S = S, Y = y, X = x), iter = 1000, chains = 4)
+
+#Convergence du modèle
+traceplot(fit_JQ_2)
+summary(fit_JQ_2)
+
+#Distribution à posteriori
+mcmc_trace(fit_JQ_2)
+
+#sauvegarde
+saveRDS(fit_JQ_2, file = "fit_JQ_2(v4).rds")
+```
+
+## *Prior informatif*
+
+*Le modèle précédent subit beaucoup l'influence des effectifs
+contrastés. Pour mieux guider le modèle, nous allons tenter de lui
+ajouter un prior informatif à partir des données du premier modèle
+concernant l'abondance initiale.*
+
+```{r importation_fit_JQ_prior}
+fit_JQ_2 <- read_rds("~/cours_r/Stage_M2/Bayesien_save/fit_JQ_2(v5).rds.rds")
+```
+
+*Maintenant nous allons faire tourner notre modèle (m_prior) à partir de
+ce alpha_s. En 1 = Jacaranda et en 2 = Qualea*
+
+```{r prior}
+# Nombre d'observations
+N = BD_JQ %>%
+  nrow()
+
+# Nombre d'espèces
+S = 2
+
+# Comptenue de la matrice présence absence
+y = BD_JQ %>%
+  select(-all_of(c("id", "DBH","Plot","CensusYear","idRegePlot","idTree")))
+
+# Variable explicative DBH
+x = BD_JQ_G %>%
+  pull(DBH)
+
+## Prior
+# Extraction de l'intersect
+alpha_s <- alpha_esp[c(5,2)]
+
+# Compilation du modèle
+#fit_JQ_2 = stan("m_prior.stan", data = list(N = N, S = S, Y = y, X = x, alpha_s = alpha_s), iter = 1000, chains = 4)
+
+#Convergence du modèle
+traceplot(fit_JQ_2)
+summary(fit_JQ_2)
+
+#Distribution à posteriori
+mcmc_trace(fit_JQ_2)
+
+#sauvegarde
+saveRDS(fit_JQ_2, file = "fit_JQ_2(v5).rds")
+```
+
+## *Log--carrée*
+
+```{r importation_log_carre}
+fit_JQ_2_log <- read_rds("~/cours_r/Stage_M2/Bayesien_save/fit_JQ_2(log).rds")
+```
+
+```{r log_carre}
+# Nombre d'observations
+N = BD_JQ %>%
+  nrow()
+
+# Nombre d'espèces
+S = 2
+
+# Comptenue de la matrice présence absence
+y = BD_JQ %>%
+  select(-all_of(c("id", "DBH","Plot","CensusYear","idRegePlot","idTree")))
+
+# Variable explicative DBH
+x = BD_JQ_G %>%
+  pull(DBH)
+
+## Prior
+# récupérer les generate_quantities
+theta <- extract(fit_JQ_1)$theta 
+
+# Calcule de la moyenne
+alpha_s <- apply(theta, 2, mean)
+
+# Compilation du modèle
+fit_JQ_2 = stan("m_log.stan", data = list(N = N, S = S, Y = y, X = x, alpha_s = alpha_s), iter = 100, chains = 4)
+
+#Convergence du modèle
+traceplot(fit_JQ_2)
+summary(fit_JQ_2)
+
+#Distribution à posteriori
+mcmc_trace(fit_JQ_2)
+
+#sauvegarde
+saveRDS(fit_JQ_2, file = "fit_JQ_2(log).rds")
+```
+
+*Oui ça fonctionne log ré-équilibre les petits et les gros, le carré
+permet d'avoir une variation qui s'adapte à des cas comme le Jac qui a
+plus d'individus au milieu.*
+
+***Réduction de l'écart-type** Comme dit précédemment, nous cherchons à
+ajouter de l'information à notre modèle pour combler le faible signal
+lié au DBH. Une autre solution apportée serait de réduire l'écart-type
+de nos DBH. En d'autre termes nous allons tenter d'augmenter la
+précision en diminuant la dispersion autour de la moyenne.*
+
+*Dans un cadre bayésien, des priors informés peuvent aider à réduire
+l'incertitude et donc l'écart-type des paramètres postérieurs.*
+
+# *fit_BD_JV_1*
+
+*Est-ce que quand on augmente la surface terrière, la présence de
+Jacaranda diminue ? Et inversement pour Vouacapou ? (Affinité à la lux)*
+
+*Pour les résultats du modèle, 1 = Jacaranda et 2 = Vouacapou*
+
+```{r importation_fit_JV_1}
+# si pas encore tournée
+## Variable à expliquer
+BD_JV_1 <- read.csv("~/cours_r/Stage_M2/BD_JV_1.csv", row.names=1)
+
+## Variable explicatives
+BD_JV_G <- read.csv("~/cours_r/Stage_M2/BD_JV_G.csv", row.names=1)
+
+# Si déjà tournée
+fit_JV_1 <- read_rds("~/cours_r/Stage_M2/Bayesien_save/fit_JV_1.rds")
+```
+
+```{r fit_JV_1}
+# Nombre d'observations
+N = BD_JV_1 %>%
+  nrow()
+
+# Nombre d'espèces
+S = 2
+
+# Comptenue de la matrice présence absence
+y = BD_JV_1 %>%
+  select(-all_of(c("id", "DBH","Plot","CensusYear","idRegePlot","idTree")))
+
+# DBH estimée
+x = BD_JV_G %>%
+  pull(G)
+
+#Convergence du modèle
+traceplot(fit_JV_1)
+summary(fit_JV_1)
+
+#Distribution à posteriori
+mcmc_trace(fit_JV_1)
+
+#sauvegarde
+saveRDS(fit_JV_1, file = "fit_JV_1.rds")
+```
+
+# *fit_VP_1*
+
+*Est-ce que un modèle non linéaire prédit mieux la présence de Pradosia
+et Vouacapou au tempérament changeant ? 1 = Vouacapou , 2 = Pradosia*
+
+```{r importation_VP_1}
+# Variable à expliquer
+BD_VP_1 <- read.csv("~/cours_r/Stage_M2/BD_VP_1.csv", row.names=1)
+
+# Variable explicatives
+BD_VP_G <- read.csv("~/cours_r/Stage_M2/BD_VP_G.csv", row.names=1)
+
+# Modèle
+fit_VP_1 <- read_rds("~/cours_r/Stage_M2/Bayesien_save/fit_VP_1.rds")
+```
+
+```{r fit_VP_1}
+# Nombre d'observations
+N = BD_VP_1 %>%
+  nrow()
+
+# Nombre d'espèces
+S = 2
+
+# Comptenue de la matrice présence absence
+y = BD_VP_1 %>%
+  select(-all_of(c("id", "DBH","Plot","CensusYear","idRegePlot","idTree")))
+
+x = BD_VP_G %>%
+  pull(G)
+
+# Compilation du modèle
+#fit_VP_1 = stan("m_polynomeDBH.stan", data = list(N = N, S = S, Y = y, X = x), iter = 100, chains = 4)
+
+#Convergence du modèle
+traceplot(fit_VP_1)
+summary(fit_VP_1)
+
+#Distribution à posteriori
+mcmc_trace(fit_VP_1)
+
+#sauvegarde
+saveRDS(fit_VP_1, file = "fit_VP_1.rds")
+```
+
+## *Polynome + G*
+
+*Nous avons pu voir précédemment que la mise en place d'une
+transformation logarithmique renseigner pouvais apporter plus
+d'information à nos priors.*
+
+*1 = Vouacaoupa 2 = Pradosia*
+
+```{r importation_fit_VP_1(v2), include = FALSE}
+# le modele
+fit_VP_1_polyG <- read_rds("~/cours_r/Stage_M2/Bayesien_save/fit_VP_1_polyG.rds")
+```
+
+```{r fit_VP_1(v2)}
+# Nombre d'observations
+N = BD_VP_1 %>%
+  nrow()
+
+# Nombre d'espèces
+S = 2
+
+# Contenue de la matrice présence absence
+y = BD_VP_1 %>%
+  select(-all_of(c("id", "DBH","Plot","CensusYear","idRegePlot","idTree")))
+
+# Variables explicatives
+x = BD_VP_G %>%
+  pull(DBH)
+
+z = BD_VP_G %>%
+  dplyr::pull(G)
+
+# Intercept
+alpha_s = alpha_esp[c(3,4)]
+
+# Compilation du modèle
+#fit_VP_1_polyG = stan("m_polynomeG.stan", data = list(N = N, S = S, Y = y, X = x, Z = z, alpha_s = alpha_s), iter = 100, chains = 4)
+
+#Convergence du modèle
+traceplot(fit_VP_1_polyG)
+summary(fit_VP_1_polyG)
+
+#Distribution à posteriori
+mcmc_trace(fit_VP_1_polyG)
+
+#sauvegarde
+saveRDS(fit_VP_1_polyG, file = "fit_VP_1_polyG.rds")
+```
+
+*Ok ça converge bien. L'interprétation étant difficile, nous allons
+centrer réduire notre modèle.*
+
+## *Centre et réduit*
+
+*Nous avons pu voir précédemment que la mise en place d'une
+transformation logarithmique renseigner pouvais apporter plus
+d'information à nos priors, nous allons également centrée et réduire (cf
+cahier pour plus d'explications)*
+
+*1 = Vouacaoupa 2 = Pradosia*
+
+```{r importation_fit_VP_1(v2), include = FALSE}
+# le modele
+fit_VP_cr.rds <- read_rds("~/cours_r/Stage_M2/Bayesien_save/fit_VP_cr.rds")
+```
+
+```{r fit_VP_1(v2)}
+# Nombre d'observations
+N = BD_VP_1 %>%
+  nrow()
+
+# Nombre d'espèces
+S = 2
+
+# Contenue de la matrice présence absence
+y = BD_VP_1 %>%
+  select(-all_of(c("id", "DBH","Plot","CensusYear","idRegePlot","idTree")))
+
+# Variables explicatives
+x = BD_VP_G %>%
+  pull(DBH)
+
+z = BD_VP_G %>%
+  dplyr::pull(G)
+
+# Intercept
+alpha_s = alpha_esp[c(3,4)]
+
+# Compilation du modèle
+#fit_VP_cr = stan("m_centre_reduit.stan", data = list(N = N, S = S, Y = y, X = x, Z = z, alpha_s = alpha_s), iter = 100, chains = 4)
+
+# Convergence du modèle
+traceplot(fit_VP_cr)
+summary(fit_VP_cr)
+
+# Distribution à posteriori
+mcmc_trace(fit_VP_cr)
+
+# Sauvegarde
+saveRDS(fit_VP_cr, file = "fit_VP_cr.rds")
+```
+
+# *Prédictions*
+
+*Maintenant que l'ensemble de nos modèles tournent et que ça parait
+logique. Nous allons créer un modèle qui nous permet de visualiser ce
+qu'il se passe avec des graphes. Pour cela nous avons ajouter les
+prédictions aux modèles.*
+
+## *DBH*
+
+*Nous cherchons à faire un graphe pour pouvoir vérifier que ce qu'on a
+fait est bien juste. Pour le tableau des matrices, 2 = Qualea, 5 =
+Jacaranda Pour les résultats du modèle, 2 = Qualea, 1 = Jacaranda*
+
+```{r importation fit_DBH_pred}
+fit_DBH_pred <- read_rds("~/cours_r/Stage_M2/Bayesien_save/fit_DBH_pred.rds")
+```
+
+*Il y a un problème dans mon modèle je l'ai écrit et paramétrer n'imp
+où*
+
+```{r fit_DBH_pred}
+N = BD_JQ %>%
+  nrow()
+
+# Nombre d'espèces
+S = 2
+
+# Comptenue de la matrice présence absence
+y = BD_JQ %>%
+  select(-all_of(c("id","DBH","Plot","CensusYear","idRegePlot","idTree")))
+
+# Variable explicative DBH
+x = BD_JQ_G %>%
+  pull(DBH)
+
+# DBH prédit
+X_pred = seq(from = 0.99,
+             to = 70,
+             by = 0.01) 
+
+# Données prédiciton
+N_pred = length(X_pred)
+  
+# Intersept
+alpha_s <- alpha_esp[c(5,2)]
+
+# Compilation du modèle
+fit_DBH_pred = stan("m_DBH_pred.stan", data = list(N = N, S = S, Y = y, X = x, N_pred = N_pred, X_pred = X_pred, alpha_s = alpha_s), iter = 100, chains = 4)
+
+#Convergence du modèle
+traceplot(fit_DBH_pred)
+summary(fit_DBH_pred, pars = c("alpha[1]", "alpha[2]", "beta[1]", "beta[2]", "gamma[1]", "gamma[2]"))
+
+#Distribution à posteriori
+mcmc_trace(fit_DBH_pred, pars = c("alpha[1]", "alpha[2]", "beta[1]", "beta[2]", "gamma[1]", "gamma[2]"))
+
+#sauvegarde
+saveRDS(fit_DBH_pred, file = "fit_DBH_pred.rds")
+```
+
+```{r extract}
+y_pred <- extract(fit_DBH_pred, permuted = T)
+
+# Récupérer les valeurs de vouacapou
+y_jacaranda <- y_pred$Y_pred[,,1]
+
+y_qualea <- y_pred$Y_pred[,,2]
+# 
+plot(X_pred, apply(y_jacaranda, 2, mean))
+plot(X_pred, apply(y_qualea, 2, mean))
+
+```
+
+## *Surface terrière*
+
+```{r importation_fit_surfaceterriere}
+fit_surfaceterriere <- read_rds()
+```
+
+*Dans le jeu de donnée 3 = Vouacapoua 4 = Pradosia.*
+
+*Dans la sortie 1 = Vouacapoua, 2 = Pradosia.*
+
+```{r fit_predict}
+# Nombre d'observations
+N = BD_VP_1 %>%
+  nrow()
+
+# Nombre d'espèces
+S = 2
+
+# Contenue de la matrice présence absence
+Y = BD_VP_1 %>%
+  select(-all_of(c("id", "DBH","Plot","CensusYear","idRegePlot","idTree")))
+
+# Variables explicatives
+Z = BD_VP_G %>%
+  dplyr::pull(G)
+
+# Prédiction de surface terrière pour les graphes
+Z_pred = seq(from = 1, 
+             to = 4,
+             by = 0.01)
+# Longueur de la prédiction
+N_pred = length(Z_pred)
+
+# Intercept
+alpha_s = alpha_esp[c(3,4)]
+
+# Compilation du modèle
+fit_surfaceterriere = stan("m_surfaceterriere.stan", data = list(N =N, S = S, Y =Y, Z =Z, alpha_s = alpha_s, N_pred = N_pred, Z_pred = Z_pred), iter = 1000, chains = 4)
+
+# Convergence du modèle
+traceplot(fit_surfaceterriere)
+summary(fit_surfaceterriere)
+
+# Distribution à posteriori
+mcmc_trace(fit_surfaceterriere, pars = c("alpha[1]", "alpha[2]", "delta[1]", "delta[2]"))
+
+# Sauvegarde
+saveRDS(fit_surfaceterriere, file = "fit_surfaceterriere.rds")
+```
+
+```{r extract}
+y_pred <- extract(fit_surfaceterriere, permuted = T)
+
+# Récupérer les valeurs de vouacapou
+y_vouacapou <- y_pred$Y_pred[,,1]
+
+y_pradosia <- y_pred$Y_pred[,,2]
+# 
+plot(Z_pred, apply(y_pradosia, 2, mean))
+plot(Z_pred, apply(y_vouacapou, 2, mean))
+```
+
+## *Surface terrière + DBH*
+
+*Celui où il y a l'ensemble de l'équation qui est également centrée
+réduit. Nous allons faire tourner le fat modèle. Nous allons le faire
+tourner sur Jacaranda et Qualea*
+
+```{r importation fit_fat}
+fit_fat <- read_rds(fit_fat,"~/cours_r/Stage_M2/Bayesien_save/fit_fat.rds")
+```
+
+```{r fit_fat}
+# Nombre d'observations
+N = BD_JQ %>%
+  nrow()
+
+# Nombre d'espèces
+S = 2
+
+# Contenue de la matrice présence absence
+Y = BD_JQ %>%
+  select(-all_of(c("id", "DBH","Plot","CensusYear","idRegePlot","idTree")))
+
+X = BD_JQ_G %>%
+  dplyr::pull(DBH)
+
+# Variables explicatives
+Z = BD_JQ_G %>%
+  dplyr::pull(G)
+
+# Prédiction de surface terrière pour les graphes
+Z_pred = seq(from = 1, 
+             to = 4,
+             by = 0.01)
+# Longueur de la prédiction G
+K_pred = length(Z_pred)
+
+# Prédiction du DBH
+X_pred = seq(from = 1,
+             to = 70,
+             by = 0.01) 
+
+# Longueur de la prédiciton DBH
+N_pred = length(X_pred)
+
+# Intercept
+alpha_s = alpha_esp[c(5,2)]
+
+# Compilation du modèle
+fit_fat = stan("m_centre_reduit.stan",
+               data = list(N = N, 
+                           S = S,
+                           Y = Y,
+                           X = X,
+                           Z = Z,
+                           alpha_s = alpha_s,
+                           N_pred = N_pred,
+                           X_pred = X_pred,
+                           K_pred = K_pred,
+                           Z_pred = Z_pred),
+               iter = 100, chains = 4)
+
+# Convergence du modèle
+traceplot(fit_fat)
+summary(fit_fat, pars = c("alpha[1]", "alpha[2]", "beta[1]", "beta[2]", "gamma[1]","gamma[2]", "delta[1]", "delta[2]", "epsilon[1]","epsilon[2]"))
+
+summary(fit_fat, pars = c("Y_pred_x", "Y_pred_z"))
+# Distribution à posteriori
+mcmc_trace(fit_fat, pars = c("alpha[1]", "alpha[2]", "beta[1]", "beta[2]", "gamma[1]","gamma[2]", "delta[1]", "delta[2]", "epsilon[1]","epsilon[2]"))
+
+# Sauvegarde
+saveRDS(fit_fat, file = "fit_fat.rds")
+```
+
+```{r plot_fit_fat}
+Y_pred <- extract(fit_fat, permuted = T)
+
+Y_pred_x <- Y_pred$Y_pred_x
+Y_pred_z <- Y_pred$Y_pred_z
+
+# Récupérer les valeurs de Jacaranda
+Y_jacaranda_x <- Y_pred$Y_pred_x[,,1]
+Y_jacaranda_z <- Y_pred$Y_pred_z[,,1]
+
+Y_qualea_x <- Y_pred$Y_pred_x[,,2]
+Y_qualea_z <- Y_pred$Y_pred_z[,,2]
+
+# Création df
+Y_qualea <- matrix()
+Y_qualea$X <- dim(apply(Y_jacaranda_z, 2, mean))
+Y_qualea$Z <- as.matrix(apply(Y_jacaranda_x, 2, mean))
+
+# Graphique
+plot(Y_pred_z, )
+
+plot(Z_pred, apply(Y_jacaranda_z, 2, mean))
+plot(X_pred, apply(Y_jacaranda_x, 2, mean))
+
+plot(Z_pred, apply(Y_qualea_z, 2, mean))
+plot(X_pred, apply(Y_qualea_x, 2, mean))
+```
+
+
+```{r G_graph}
+# Créer un dataframe vide pour stocker les données
+esp_G <- data.frame()
+
+# Boucle for pour parcourir les espèces
+for (i in 1:2) {
+  # Calculer les statistiques pour chaque espèce
+  Y_mean <- apply(Y_pred$Y_pred_z[,,i], 2, mean)
+  Y_lower <- apply(Y_pred$Y_pred_z[,,i], 2, quantile, 0.025)
+  Y_upper <- apply(Y_pred$Y_pred_z[,,i], 2, quantile, 0.975)
+  
+  # Créer un dataframe temporaire pour cette espèce
+  temp_df <- data.frame(
+    Z_pred = Z_pred,
+    Y_mean = Y_mean,
+    Y_lower = Y_lower,
+    Y_upper = Y_upper,
+    Species = paste0("Species ", i)
+  )
+  
+  # Ajouter le dataframe temporaire au dataframe principal
+  esp_graphe <- rbind(esp_graphe, temp_df)
+}
+
+# Tracer le graphique avec ggplot2
+plot_G <- ggplot(esp_graphe, aes(x = Z_pred, color = Species)) +
+  geom_line(aes(y = Y_mean)) +
+  geom_ribbon(aes(ymin = Y_lower, ymax = Y_upper), alpha = 0.3, linetype = "dashed") +
+  labs(x = "Surface terrière (en cm)", y = "Probabilité prédite", color = "Espèce", fill = NULL) +
+  scale_color_discrete(labels = c("Jacaranda copaia", "Qualea rosea")) +
+  scale_fill_manual(values = "grey80", guide = guide_legend(override.aes = list(linetype = "solid", color = NA))) +
+  theme_default() +
+  theme(
+    panel.grid.major.y = element_line(color = "grey80", size = 0.2),
+    panel.grid.minor.y = element_line(color = "grey90", size = 0.1)
+  )
+```
+Maintenant faisons celui avec les X
+
+```{r DBH_grahe}
+# Créer un dataframe vide pour stocker les données
+esp_DBH <- data.frame()
+
+# Boucle for pour parcourir les espèces
+for (i in 1:2) {
+  # Calculer les statistiques pour chaque espèce
+  Y_mean <- apply(Y_pred$Y_pred_x[,,i], 2, mean)
+  Y_lower <- apply(Y_pred$Y_pred_x[,,i], 2, quantile, 0.025)
+  Y_upper <- apply(Y_pred$Y_pred_x[,,i], 2, quantile, 0.975)
+  
+  # Créer un dataframe temporaire pour cette espèce
+  temp_df <- data.frame(
+    X_pred = X_pred,
+    Y_mean = Y_mean,
+    Y_lower = Y_lower,
+    Y_upper = Y_upper,
+    Species = paste0("Species ", i)
+  )
+  
+  # Ajouter le dataframe temporaire au dataframe principal
+  esp_DBH <- rbind(esp_DBH, temp_df)
+}
+
+# Tracer le graphique avec ggplot2
+plot_DBH <- ggplot(esp_DBH, aes(x = X_pred, color = Species)) +
+  geom_line(aes(y = Y_mean)) +
+  geom_ribbon(aes(ymin = Y_lower, ymax = Y_upper, fill = "IC 95%"), alpha = 0.3, linetype = "dashed") +
+  labs(x = "DBH (en cm)", y = "Probabilité prédite", color = "Espèce", fill = NULL) +
+  scale_color_discrete(labels = c("Jacaranda copaia", "Qualea rosea")) +
+  scale_fill_manual(values = "grey80", guide = guide_legend(override.aes = list(linetype = "solid", color = NA))) +
+  theme_default() +
+  theme(
+    panel.grid.major.y = element_line(color = "grey80", size = 0.2),
+    panel.grid.minor.y = element_line(color = "grey90", size = 0.1)
+  )
+```
+
+Faisons apparaître les deux ensembles.
+```{r apparaître les deux}
+grid.arrange(plot_G, plot_DBH, ncol = 2)
+```
+
+Fin du script ! Bon boulot :)
