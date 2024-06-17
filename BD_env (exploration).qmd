@@ -1,0 +1,210 @@
+---
+title: "Etude de la variable lumière"
+format: docx
+editor: visual
+---
+
+# Contexte
+
+```{r environnement de travail, include=F}
+setwd("C:/Users/Maud Otello/Documents/cours_r/Stage_M2/script")
+# Vérifier que ça ait bien fonctionné
+getwd()
+```
+
+```{r Packages}
+library(ggsignif)  # Pour test stat boxplot
+library(lmtest)    # Pour faire des tests statistiques
+library(Rmisc)     # Pour summarySE
+library(tidyverse) # Pour langage et packages associés
+library(knitr)     # Pour de beaux tableaux
+```
+
+Dans l'objectif de faire un modèle bayésien, nous souhaitons mettre en place une analyse descriptive des variables environnementales que l'on souhaite étudier (G, CHM). Ce script fait suite à l'extraction de données créé par T. Gaquiert dans le document *Extraction.R*. Ce document en plus de créer les CHM sur les parcelles 1, 6 et 11, réalise le calcule de la surface terrière. L'environnement lumineux ayant un impact sur les juvéniles a été a été estimé à 15m de rayon. Chacune des observations est rattaché au centroïde de placette compris dans 5m de rayon.
+
+```{r importation, include = F}
+var_lux <- read.csv("~/cours_r/Stage_M2/Var_lux(2004_2016).csv")
+
+var_lux <- var_lux[,-1] # Retrait de la colonne X inutile
+```
+
+A partir de ce script nous voulons :
+
+1.  Tester sur chacune des parcelles (P1, P6 et P11).
+2.  Observer au niveau des valeurs ce qu'il se passe.
+3.  A quelles points les variables CHM et G sont-elles corrélées ?
+4.  Quelle est l'avantage d'utiliser l'un par rapport à l'autre ?
+5.  Est-ce que le CHM et le G sont les mêmes une années sur l'autre ?
+
+# Mise en place
+
+Le df *var_lux* est composée des données de surface terrière, de CHM, du numéro de parcelle, et du numéro de sous parcelle. Chaque ligne représente une sous parcelle. Nous voudrions pouvoir par la suite comparer s'il existe une différence entre année, entre parcelle.
+
+Pour pouvoir se faire selon les années il nous scinder le df de base pour y rajouter une colonne année.
+
+```{r var_CHM}
+# sélection année 2004
+CHM_2004 <- var_lux %>%
+  select(-c("G", "nombre_tiges", "Median_CHM_2016", "Perc25_CHM_2016", "Perc75_CHM_2016"))
+# Ajout colonne année
+CHM_2004 <- CHM_2004 %>%
+  mutate(annee = 2004)
+# Changement du nom de colonne
+CHM_2004 <- CHM_2004 %>%
+  rename(Median_CHM = Median_CHM_2004,
+         Perc25_CHM = Perc25_CHM_2004,
+         Perc75_CHM = Perc75_CHM_2004)
+
+# sélection année 2016
+CHM_2016 <- var_lux %>%
+  select(-c("G", "nombre_tiges","Median_CHM_2004", "Perc25_CHM_2004", "Perc75_CHM_2004"))
+# Ajout colonne année
+CHM_2016 <- CHM_2016 %>%
+  mutate(annee = 2016)
+# Changement du nom de colonne
+CHM_2016 <- CHM_2016 %>%
+  rename(Median_CHM = Median_CHM_2016,
+         Perc25_CHM = Perc25_CHM_2016,
+         Perc75_CHM = Perc75_CHM_2016)
+
+# Fusion des 2 jeux de données
+var_CHM <- rbind(CHM_2004, CHM_2016)
+```
+
+Je pense que ça va poser problème par la suite d'avoir des valeurs qui se répètent. Pour éviter toute confusion dans les calcules nous allons séparer les données de surfaces terrières aux données CHM.
+
+```{r var_G}
+var_G <- var_lux %>%
+  select("idRegePlot", "G", "nombre_tiges","Plot")
+```
+
+# Surface terrière
+
+La surface terrière (G) est une mesure qui nous indique la surface cumulée de l'ensemble des troncs à 1m30 du sol. Elle est exprimée en m²/ha et se calcule de la manière suivante : $$G= \sum_{i=1}^{n} \pi * \frac{D^2}{4}$$ *Avec G la surface terrière en m/ha et D le diamètre en m. L'estimation de la surface terrière se fait à partir des individus DBH \> 10cm.*
+
+En écologie, c'est un indice d'occupation du sol et de l'espace. Ce qui nous donne une information sur la compétition locale d'un individus. Elle est calculer sur un rayon de 15m depuis le centroïdes de chaque parcelles. Ici nous disposons de l'information par placette. Nous aimerions tester s'il existe des différences significative de la surface terrière par parcelle. Pour rappel nous travaillons sur les parcelles de 5m de rayon.
+
+*Tkt pas Maud ça va bien se passer, il faut déjà faire apparaître le graphe. Avant d'appliquer une comparaison de moyenne il faudrait vérifier si c'est appliquable. Tu sais le faire et au pire tes cours sont disponible. Je te fais confiance ensemble on peut réussir ;-) .*
+
+Pour avoir une première visualisation nous allons regarder la répartition des surfaces terrières par parcelles à l'aide de boxplot. Nous allons ajouter un test d'analyse de la variance.
+
+H0 : les moyennes entre parcelles sont toutes égales
+
+H1 : au moins une des moyennes est différente
+
+Je n'arrive même pas à faire un modèle linéaire...
+
+Comparaison entre groupe utilisation de Bonferroni, mais deux à deux t-test. A revoir précisément.
+
+```{r G_anova}
+# Summary
+G_summary <- summarySE(var_G, measurevar="G",groupvars=c("Plot"))
+
+kable(G_summary)
+# Factorisation
+var_G <- var_G %>%
+  mutate(Plot = as.factor(Plot))
+
+# Anova 
+G_anova <- var_G %>%
+  aov(G ~ Plot, data = .)
+
+# Table de variance
+G_anova_sum <- summary(G_anova)
+
+# Box_plot
+var_G %>%
+  ggplot(aes (x = as.factor(Plot), y = G, fill = Plot)) +
+  geom_boxplot()+
+  # test significativité
+  geom_signif(
+  comparisons = list(c("1", "6"), c("6", "11"), c("1", "11")),
+  data = G_anova,
+  test = "anova",
+  map_signif_level = TRUE,
+  textsize = 5,
+  vjust = 0.25,
+  y_position = max(var_G$G) + 0.5,
+  tip_length = 0
+) +
+  labs(
+    x = "Numéro de parcelle",
+    y = "Surface Terrière (en m)") +
+  theme_linedraw()
+
+```
+
+Nous avont une anova significative. Donc on s'attend à avoir quelque chose qui apparait. Donc il existe un effet parcelle. De plus nous disposons d'un nombre d'arbre pour calculer les surface terrières.
+
+On peut voir dans la première parcelle qu'il existe un outlayer qui va jusqu'à 5m/ha de surface terrière.
+
+```{r num_Boxplot}
+var_G %>%
+  ggplot(aes (x = as.factor(Plot), y = nombre_tiges, fill = Plot)) +
+  geom_boxplot()+
+  labs(
+    x = "Numéro de parcelle",
+    y = "Nombre de tige") +
+  theme_linedraw()
+```
+
+Le nombre d'individus par placette
+
+# CHM
+
+Le CHM en français Modèle Numérique de Canopée, est une variable réalisée à partir du MNT et de la ... Il réalise une différence entre ces deux variables ce qui donne une information sur la hauteur de la canopée. On fait ainsi abstraction de l'altitude.
+
+```{r CHM_boxplot}
+Var_CHM %>%
+  ggplot(aes (x = as.factor(annee), y = Median_CHM, fill = annee)) +
+  geom_boxplot()+
+  theme_linedraw()+
+  labs(
+    x = "Année",
+    y = "Hauteur de canopée (en m)") +
+      facet_wrap(vars(Plot)) +
+  theme(strip.background = element_rect(fill = "black"))
+```
+
+La hauteur de canopée globale varie entre 25m et 35m de hauteur à quelques exceptions près. De manière générale, on peut voir que la canopée en 11ans a augmenté de taille. La taille des boîtes nous renseigne sur l'hétérogénéité de la hauteur de canopée au sein de la parcelle : 1 \>6\>11. Sur l'année 2016 la canopée de la parcelle 1 semble être nettement supérieur aux autres. De manière globale on voit qu'il y a de légères différence entre placette reste plus qu'à l'évaluer.
+
+## Anova
+
+Pour vérifier tout cela nous allons réaliser une anova à deux facteurs. Nous avons comme variables explicatives : l'année et la parcelle, et comme variable à expliquer le CHM. Nous nous estimons que la variable année et la variable parcelle sont indépendantes.
+
+Avant d'appliquer l'anova, pour se faire une idée du jeu de donnée, nous allons regarder les moyennes, écart-types, et intervalles de confiances (loi de student) pour chaque modalité.
+
+```{r summary}
+CHM_summary <- summarySE(Var_CHM, measurevar="Median_CHM",groupvars=c("annee","Plot"))
+kable(CHM_summary)
+```
+
+On va vérifier l'effet de
+
+```{r anova_CHM}
+# Factorisation
+var_G <- var_G %>%
+  mutate(Plot = as.factor(Plot))
+
+# Anova 
+G_anova <- var_G %>%
+  aov(G ~ Plot, data = .)
+
+# Table de variance
+summary(G_anova)
+
+```
+
+# Test de corrélation
+
+Nous allons essayé de voir à quel point nos variables sont correlés positivement
+
+```{r correlation}
+# G vs CHM_2016
+plot(var_lux$G, var_lux$Median_CHM_2016)
+
+# G vs CHM_2004
+plot(var_lux$G, var_lux$Median_CHM_2004)
+```
+
+Pour comparer ces deux corrélations aller voir ce qu'il peut être fait.
