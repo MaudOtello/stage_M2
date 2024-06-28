@@ -1,0 +1,412 @@
+---
+title: "Modèle bayésien (real)"
+author: "Maud OTELLO"
+date: "2024-06-07"
+output: word_document
+---
+
+Ce script à pour objectif de mettre en place notre modèle bayésien accompagné de ses résultats.
+
+Notre modèle bayésien cherche à savoir :
+
+$$presence_{espece_i|pool} ~ DirichletMultinomial[softmax(\alpha_i + \beta_i * X_i + \gamma_i * X_i + \delta_i * Z_i + \epsilon_i * Z_i)] $$
+
+```{r packages}
+library(tidyverse) #pour langage tidyvers, ggplot2, purrr
+library(rstan)     #pour faire tourner les fichiers R
+library(bayesplot) #pour les graphes posterieurs
+library(gridExtra) #pour faire apparaître 2 graphes côte à côte
+library(dplyr)     #car masquer juste avant
+library(viridis)  # pour les couleurs adaptées aux daltoniens
+```
+
+```{r importation, include = FALSE}
+ BD_esp_G <- read.csv("~/cours_r/Stage_M2/BD_esp_G.csv", row.names=1)
+# Arrangement de l'ordre des colonnes
+BD_esp_G <- BD_esp_G %>%
+  select(id,idRegePlot,idTree,CensusYear,Plot,DBH, X1,X2,X3,X4,X5,X6)
+# Modèle
+fit_alpha <- read_rds("~/cours_r/Stage_M2/Bayesien_save/fit_alpha.rds")
+```
+
+# Abondance par espèce
+
+Ce premier modèle est contenue dans fit_alpha. Il va nous servir par la suite de prior informatif afin de permettre d'accélérer le temps de prédiction du modèle.
+
+```{r alpha_esp}
+alpha_esp <- alpha_esp <- apply(extract(fit_alpha)$theta , 2, mean)
+```
+
+# DBH + Surface terrière
+
+```{r BD_env_G}
+# Modèle complet
+fit_complet <- read.rds("~/cours_r/Stage_M2/Bayesien_save/fit_complet.rds")
+# Variable explicative
+BD_env_G <- read.csv("~/cours_r/Stage_M2/BD_env_G.csv", row.names=1)
+
+```
+
+Nous voulons savoir comment varie chaque espèce de notre étude celon ces deux variables explicatives.
+
+```{r fit_complet}
+# Nombre d'observations
+N = BD_esp_G %>%
+  nrow()
+
+# Nombre d'espèces
+S = 6
+
+# Contenue de la matrice présence absence
+Y = BD_esp_G %>%
+  select(-all_of(c("id", "DBH","Plot","CensusYear","idRegePlot","idTree")))
+
+X = BD_env_G %>%
+  dplyr::pull(DBH)
+
+# Variables explicatives
+Z = BD_env_G %>%
+  dplyr::pull(G)
+
+# Prédiction de surface terrière pour les graphes
+Z_pred = seq(from = min(Z), 
+             to = max(Z),
+             by = 0.01)
+# Longueur de la prédiction G
+K_pred = length(Z_pred)
+
+# Prédiction du DBH
+X_pred = seq(from = 1,
+             to = max(X),
+             by = 0.01) 
+
+# Longueur de la prédiciton DBH
+N_pred = length(X_pred)
+
+# Intercept
+alpha_s = alpha_esp
+
+# Compilation du modèle
+fit_complet = stan("m_centre_reduit.stan",
+               data = list(N = N, 
+                           S = S,
+                           Y = Y,
+                           X = X,
+                           Z = Z,
+                           alpha_s = alpha_s,
+                           N_pred = N_pred,
+                           X_pred = X_pred,
+                           K_pred = K_pred,
+                           Z_pred = Z_pred),
+               iter = 100, chains = 4)
+
+# Convergence du modèle
+complet_traceplot <- traceplot(fit_complet, pars = c("alpha[1]", "beta[1]", "gamma[1]", "delta[1]", "epsilon[1]",
+                  "alpha[2]", "beta[2]", "gamma[2]", "delta[2]", "epsilon[2]",
+                  "alpha[3]", "beta[3]", "gamma[3]", "delta[3]", "epsilon[3]",
+                  "alpha[4]", "beta[4]", "gamma[4]", "delta[4]", "epsilon[4]",
+                  "alpha[5]", "beta[5]", "gamma[5]", "delta[5]", "epsilon[5]",
+                 "alpha[6]", "beta[6]", "gamma[6]", "delta[6]", "epsilon[6]"))
+# Paramètres
+complet_summary <- summary(fit_complet, 
+         pars = c("alpha[1]", "beta[1]", "gamma[1]", "delta[1]", "epsilon[1]",
+                  "alpha[2]", "beta[2]", "gamma[2]", "delta[2]", "epsilon[2]",
+                  "alpha[3]", "beta[3]", "gamma[3]", "delta[3]", "epsilon[3]",
+                  "alpha[4]", "beta[4]", "gamma[4]", "delta[4]", "epsilon[4]",
+                  "alpha[5]", "beta[5]", "gamma[5]", "delta[5]", "epsilon[5]",
+                 "alpha[6]", "beta[6]", "gamma[6]", "delta[6]", "epsilon[6]"))
+
+# Distribution à posteriori
+complet_mcmc <- mcmc_trace(fit_complet, 
+        pars = c("alpha[1]", "beta[1]", "gamma[1]", "delta[1]", "epsilon[1]",
+                 "alpha[2]", "beta[2]", "gamma[2]", "delta[2]", "epsilon[2]",
+                 "alpha[3]", "beta[3]", "gamma[3]", "delta[3]", "epsilon[3]",
+                 "alpha[4]", "beta[4]", "gamma[4]", "delta[4]", "epsilon[4]",
+                 "alpha[5]", "beta[5]", "gamma[5]", "delta[5]", "epsilon[5]",
+                 "alpha[6]", "beta[6]", "gamma[6]", "delta[6]", "epsilon[6]"))
+
+# Inf
+complet_mcmc_intervals <- mcmc_intervals(fit_complet, pars = c("alpha[1]", "beta[1]", "gamma[1]", "delta[1]", "epsilon[1]",
+                 "alpha[2]", "beta[2]", "gamma[2]", "delta[2]", "epsilon[2]",
+                 "alpha[3]", "beta[3]", "gamma[3]", "delta[3]", "epsilon[3]",
+                 "alpha[4]", "beta[4]", "gamma[4]", "delta[4]", "epsilon[4]",
+                 "alpha[5]", "beta[5]", "gamma[5]", "delta[5]", "epsilon[5]",
+                 "alpha[6]", "beta[6]", "gamma[6]", "delta[6]", "epsilon[6]"))
+```
+
+# Graphes
+
+Reste plus qu'à faire le graphique final
+
+```{r préparation}
+Y_pred <- extract(fit_complet, permuted = T)
+
+esp_6 <- c("Iryanthera sagotiana", "Qualea rosea", "Vouacapoua americana", "Pradosia cochlearia","Jacaranda copaia","Dicorynia guianensis")
+```
+
+```{r préparation}
+# Créer un dataframe vide pour stocker les données
+esp_G <- data.frame()
+
+# Boucle for pour parcourir les espèces
+for (i in 1:6) {
+  # Calculer les statistiques pour chaque espèce
+  Y_mean <- apply(Y_pred$Y_pred_z[,,i], 2, mean)
+  Y_lower <- apply(Y_pred$Y_pred_z[,,i], 2, quantile, 0.025)
+  Y_upper <- apply(Y_pred$Y_pred_z[,,i], 2, quantile, 0.975)
+  
+  # Créer un dataframe temporaire pour cette espèce
+  temp_df <- data.frame(
+    Z_pred = Z_pred,
+    Y_mean = Y_mean,
+    Y_lower = Y_lower,
+    Y_upper = Y_upper,
+    Species = paste0("Species ", i)
+  )
+  
+  # Ajouter le dataframe temporaire au dataframe principal
+  esp_G <- rbind(esp_G, temp_df)
+}
+
+# Tracer le graphique avec ggplot2
+plot_G <- ggplot(esp_G, aes(x = Z_pred, color = Species)) +
+  geom_line(aes(y = Y_mean)) +
+  geom_ribbon(aes(ymin = Y_lower, ymax = Y_upper, fill = "IC à 95%"), alpha = 0.3, linetype = "dashed") +
+  labs(x = "Surface terrière (en cm)", y = "Probabilité prédite", color = "Espèce", fill = esp_6) +
+ scale_color_discrete(labels = esp_6) +
+  scale_fill_manual(values = "grey90", 
+                    guide = guide_legend(override.aes = list(linetype = "solid"), color = esp_6_colors, labels = esp_6)) +
+  theme_default() +
+  theme(
+    panel.grid.major.y = element_line(color = "grey80", size = 0.2),
+    panel.grid.minor.y = element_line(color = "grey90", size = 0.1)
+  )
+```
+
+```{r version daltonien}
+# Création couleurs daltonien
+esp_6_colors <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#CC79A7")
+
+# On cherche à ajouter les couleurs daltonien
+plot_G <- ggplot(esp_G, aes(x = Z_pred, color = Species)) +
+  geom_line(aes(y = Y_mean)) +
+  geom_ribbon(aes(ymin = Y_lower, ymax = Y_upper, fill = Species), alpha = 0.3, linetype = "dashed") +
+  labs(x = "Surface terrière (en m²/0.07 ha)", y = "Probabilité prédite", color = "Espèce", fill = "Espèce") +
+  scale_color_manual(values = esp_6_colors, labels = esp_6) +
+  scale_fill_manual(values = esp_6_colors, labels = esp_6) +
+  theme_default() +
+  theme(
+    panel.grid.major.y = element_line(color = "grey80", size = 0.2),
+    panel.grid.minor.y = element_line(color = "grey90", size = 0.1)
+  ) +
+  guides(
+    color = guide_legend(override.aes = list(linetype = "solid")),
+    fill = guide_legend(override.aes = list(alpha = 0.3))
+  )
+
+# Conversion en m²/ha
+conversion_factor <- 10000 / (pi * 15^2)
+# On cherche à ajouter les couleurs daltonien
+plot_G_ha <- ggplot(esp_G, aes(x = Z_pred*conversion_factor, color = Species)) +
+  geom_line(aes(y = Y_mean)) +
+  geom_ribbon(aes(ymin = Y_lower, ymax = Y_upper, fill = Species), alpha = 0.3, linetype = "dashed") +
+  labs(x = "Surface terrière (en m²/ha)", y = "Probabilité prédite", color = "Espèce", fill = "Espèce") +
+  scale_x_continuous(limits = c(12, max(esp_G$Z_pred * conversion_factor)),
+                     breaks = seq(0, max(esp_G$Z_pred * conversion_factor),
+                                  by = 10))+
+  scale_color_manual(values = esp_6_colors, labels = esp_6) +
+  scale_fill_manual(values = esp_6_colors, labels = esp_6) +
+  theme_default() +
+  theme(
+    panel.grid.major.y = element_line(color = "grey80", size = 0.2),
+    panel.grid.minor.y = element_line(color = "grey90", size = 0.1)
+  ) +
+  guides(
+    color = guide_legend(override.aes = list(linetype = "solid")),
+    fill = guide_legend(override.aes = list(alpha = 0.3))
+  )
+
+##DBH
+plot_DBH <- ggplot(esp_DBH, aes(x = X_pred, color = Species)) +
+  geom_line(aes(y = Y_mean)) +
+  geom_ribbon(aes(ymin = Y_lower, ymax = Y_upper, fill = Species), alpha = 0.3, linetype = "dashed") +
+  labs(x = "DBH (en cm)", y = "Probabilité prédite", color = "Espèce", fill = "Espèce") +
+  scale_color_manual(values = esp_6_colors, labels = esp_6) +
+  scale_fill_manual(values = esp_6_colors, labels = esp_6) +
+  theme_default() +
+  theme(
+    panel.grid.major.y = element_line(color = "grey80", size = 0.2),
+    panel.grid.minor.y = element_line(color = "grey90", size = 0.1)
+  ) +
+  guides(
+    color = guide_legend(override.aes = list(linetype = "solid")),
+    fill = guide_legend(override.aes = list(alpha = 0.3))
+  )
+
+# Fusion des deux
+complet_plot_d_ha <- grid.arrange(plot_G_ha, plot_DBH, ncol = 2)
+complet_plot_d <- grid.arrange(plot_G, plot_DBH, ncol = 2)
+
+# ggplot dalto
+## Avec la conversion en ha
+ggsave(filename = "complet_plot_d_ha.pdf",
+       plot = complet_plot_d_ha,
+  width = 11, height = 8)
+
+## Sans la conversion en ha
+ggsave(filename = "complet_plot_d.pdf",
+       plot = complet_plot_d,
+  width = 11, height = 8)
+```
+
+Maintenant faisons celui avec les X
+
+```{r DBH_grahe}
+# Créer un dataframe vide pour stocker les données
+esp_DBH <- data.frame()
+
+# Boucle for pour parcourir les espèces
+for (i in 1:6) {
+  # Calculer les statistiques pour chaque espèce
+  Y_mean <- apply(Y_pred$Y_pred_x[,,i], 2, mean)
+  Y_lower <- apply(Y_pred$Y_pred_x[,,i], 2, quantile, 0.025)
+  Y_upper <- apply(Y_pred$Y_pred_x[,,i], 2, quantile, 0.975)
+  
+  # Créer un dataframe temporaire pour cette espèce
+  temp_df <- data.frame(
+    X_pred = X_pred,
+    Y_mean = Y_mean,
+    Y_lower = Y_lower,
+    Y_upper = Y_upper,
+    Species = paste0("Species ", i)
+  )
+  
+  # Ajouter le dataframe temporaire au dataframe principal
+  esp_DBH <- rbind(esp_DBH, temp_df)
+}
+
+# Tracer le graphique avec ggplot2
+plot_DBH <- ggplot(esp_DBH, aes(x = X_pred, color = Species)) +
+  geom_line(aes(y = Y_mean)) +
+  geom_ribbon(aes(ymin = Y_lower, ymax = Y_upper, fill = "IC 95%"), alpha = 0.3, linetype = "dashed") +
+  labs(x = "DBH (en cm)", y = "Probabilité prédite", color = "Espèce", fill = NULL) +
+  scale_color_discrete(labels = esp_6) +
+  scale_fill_manual(values = "grey90", guide = guide_legend(override.aes = list(linetype = "solid", color = NA))) +
+  theme_default() +
+  theme(
+    panel.grid.major.y = element_line(color = "grey80", size = 0.2),
+    panel.grid.minor.y = element_line(color = "grey90", size = 0.1)
+  )
+```
+
+Faisons apparaître les deux ensembles.
+
+```{r apparaître les deux}
+complet_ggplot <- grid.arrange(plot_G, plot_DBH, ncol = 2)
+```
+
+# Graphes sans IC
+
+```{r préparation}
+# Créer un dataframe vide pour stocker les données
+esp_G <- data.frame()
+
+# Boucle for pour parcourir les espèces
+for (i in 1:6) {
+  # Calculer les statistiques pour chaque espèce
+  Y_mean <- apply(Y_pred$Y_pred_z[,,i], 2, mean)
+
+  # Créer un dataframe temporaire pour cette espèce
+  temp_df <- data.frame(
+    Z_pred = Z_pred,
+    Y_mean = Y_mean,
+    Species = paste0("Species ", i)
+  )
+  
+  # Ajouter le dataframe temporaire au dataframe principal
+  esp_G <- rbind(esp_G, temp_df)
+}
+
+# Tracer le graphique avec ggplot2
+plot_G <- ggplot(esp_G, aes(x = Z_pred, color = Species)) +
+  geom_line(aes(y = Y_mean)) +
+  labs(x = "Surface terrière (en cm)", y = "Probabilité prédite", color = "Espèce", fill = esp_6) +
+  scale_color_discrete(labels = esp_6) +
+  theme_default() +
+  theme(
+    panel.grid.major.y = element_line(color = "grey80", size = 0.2),
+    panel.grid.minor.y = element_line(color = "grey90", size = 0.1)
+  )
+```
+
+Maintenant faisons celui avec les X
+
+```{r DBH_grahe}
+# Créer un dataframe vide pour stocker les données
+esp_DBH <- data.frame()
+
+# Boucle for pour parcourir les espèces
+for (i in 1:6) {
+  # Calculer les statistiques pour chaque espèce
+  Y_mean <- apply(Y_pred$Y_pred_x[,,i], 2, mean)
+
+  # Créer un dataframe temporaire pour cette espèce
+  temp_df <- data.frame(
+    X_pred = X_pred,
+    Y_mean = Y_mean,
+    Species = paste0("Species ", i)
+  )
+  
+  # Ajouter le dataframe temporaire au dataframe principal
+  esp_DBH <- rbind(esp_DBH, temp_df)
+}
+
+# Tracer le graphique avec ggplot2
+plot_DBH <- ggplot(esp_DBH, aes(x = X_pred, color = Species)) +
+  geom_line(aes(y = Y_mean)) +
+  labs(x = "DBH (en cm)", y = "Probabilité prédite", color = "Espèce", fill = NULL) +
+  scale_color_discrete(labels = esp_6) +
+  theme_default() +
+  theme(
+    panel.grid.major.y = element_line(color = "grey80", size = 0.2),
+    panel.grid.minor.y = element_line(color = "grey90", size = 0.1)
+  )
+```
+
+Faisons apparaître les deux ensembles.
+
+```{r apparaître les deux}
+complet_ggplot2 <- grid.arrange(plot_G, plot_DBH, ncol = 2)
+```
+
+# Sauvegarde
+
+```{r sauvegarde}
+# Modèle
+saveRDS(fit_complet, file = "fit_complet.rds")
+
+# Summary
+write.csv(as.data.frame(complet_summary), file = "complet_summary.csv")
+# Traceplot
+ggsave(filename = "complet_traceplot.pdf",
+         plot = complet_traceplot,
+  width = 11, height = 8)
+# Mcmc_trace
+ggsave(filename = "complet_mcmc.pdf",
+       plot = complet_mcmc,
+         width = 11, height = 8)
+#mcmc_intervals
+ggsave(filename = "complet_mcmc_intervals.pdf",
+       plot = complet_mcmc_intervals,
+       width = 11, height = 8)
+
+# GGplot
+ggsave(filename = "complet_ggplot.pdf",
+       plot = complet_ggplot,
+  width = 11, height = 8)
+
+# GGplot sans intervalles
+ggsave(filename = "complet_ggplot2.pdf",
+       plot = complet_ggplot2,
+  width = 11, height = 8)
+```
