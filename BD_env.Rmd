@@ -1,0 +1,260 @@
+---
+title: "BD_env"
+author: "Maud"
+date: "2024-06-04"
+output: word_document
+---
+
+Ce script est une reprise du document *Extraction.R* de T. Gaquiert avec les commentaires et test de M. Aubry-Kientz. L'objectif est de me faire la main et d'appliquer ses analyses à partir des données qui m'ont été fournies.
+
+```{r environnement de travail, include = F}
+# changer temporairement d'environnement de travail pour récup fichier
+setwd("C:/Users/Maud Otello/Documents/cours_r/Stage_M2/Cartographie")
+
+#importation des fichiers
+Placettes <- st_read('RegenerationPlots.shp')
+```
+
+```{r Packages}
+library(tidyverse) # Pour le langage et les fonction associées
+library(sf)        # Pour manipuler les shp
+library(raster)    # Pour manipuler les raster (.tif), désactive dplyr
+```
+
+# Création des variables environnementales
+
+## Placette
+
+Nous disposons de deux types de coordonnées (CoordType) : Réels/Théoriques. La 'Réels' correspond aux coordonées ajustés par correction de pentes.
+
+```{r CoordType}
+# 2 types de coordonnées : Réels / Théoriques
+unique(Placettes$CoordType) 
+
+# selection des centres 'réels' sur la P1 / 6 /11
+PlacettesP1_6_11 <- Placettes %>%
+  filter(Plot %in% c(1,6,11)) %>% 
+  filter(CoordType == 'RealCoord') 
+
+# buffer 15m autour du centre des placettes
+PlacettesP1_6_11_buffer <- st_buffer(PlacettesP1_6_11,15) 
+
+# plot placettes
+plot(st_geometry(PlacettesP1_6_11)) 
+
+# plot placettes + buffer 15m
+plot(st_geometry(PlacettesP1_6_11_buffer)) 
+
+# remplacer WGS84 UTM 22N par RFGF95 UTM22N 
+st_crs(PlacettesP1_6_11_buffer) <- st_crs(2972) 
+```
+
+Il faut remplacer WGS84 UTM 22N par RFGF95 UTM22N car bien que le CRS soit équivalents, tous les objets doivent avoir le même système de projection pour les différentes extractions. L'information de localisation de chaque placette est contenue dans une donnée type point (géolocalisée). Nous allons définir l'environnement dans les 15m aux alentours du centre du subplot.
+
+## Surface terrière
+
+```{r importation Guyafor, include = F}
+P1 <- read.csv("~/cours_r/Stage_M2/ParacouP1AllYears.csv", comment.char="#")
+P6 <- read.csv("~/cours_r/Stage_M2/ParacouP6AllYears.csv", comment.char="#")
+P11 <- read.csv("~/cours_r/Stage_M2/ParacouP11AllYears.csv", comment.char="#")
+
+# Fusion des parcelles
+Guyafor <- rbind(P1,P6,P11)
+```
+
+## 2016
+Pour pouvoir comprendre comment ça fonctionne nous allons utiliser qu'une seule année dans un premier temps.
+
+```{r Guyafor_2016}
+# Sélection de l'années 2016 et des individus vivant
+P1_6_11_2016 <- Guyafor %>%
+  filter(CensusYear==2016 & CodeAlive==1) %>%
+  dplyr::select(idTree,Xutm,Yutm, Family,Genus,Species, CircCorr) %>% #drop columns
+  st_as_sf(coords = c('Xutm', 'Yutm'), crs=2972) %>% # data.frame -> sf object 'POINT' avec crs RFGF95 UTM 22N
+  dplyr::mutate(DBH=CircCorr/pi) %>% dplyr::mutate(ST=((((DBH/100)^2)*pi)/4)) # DBH en mètres pour une Surface Terrière en m2
+```
+
+Maintenant je dispose d'un jeu de données avec mes surfaces terrières par placettes. Cette partie a été réalisé pour les individus avec un DBH \> 10cm.
+
+Maintenant nous allons calculer par placette la surface terrière
+
+```{r Surface terrière}
+# vérification des crs
+
+# intersection
+var_ST <- st_intersection(PlacettesP1_6_11_buffer, P1_6_11_2016) %>% 
+  group_by(idRegePlot) %>%  # group by identifiant unique placette
+  dplyr::summarise(G = sum(ST), nombre_tiges = n()) %>% # summarise : somme Surface Terriere par placette (m2) et nombre de tiges dans le buffer de 15m
+  st_drop_geometry() # Geometry inutile à présent, retour à un tibble
+```
+
+Maintenant nous disposons d'un jeu de données comprenant la surface terrière de l'année 2016.
+
+## Création BD_env
+
+Maintenant que nous disposons du jeu de données BD_esp_G nous pouvons faire une jointure entre les placettes et les années. Pour se faire nous allons dans un premier temps calculer par années les surfaces terrières.
+
+Pour faire ça nous avons besoin uniquement des individus DBH \> 10 disponible dans Guyafor.
+
+Les années sélectionnées correspondent à celles de BD_esp_G. Il n'y a pas eu d'inventaire Guyafor en 2002 et on note des anomalies pour l'année 2003. Il nous reste donc 7 années d'étude.
+```{r importation BD_esp_G, incude = F}
+BD_esp_G <- read.csv("~/cours_r/Stage_M2/BD_esp_G.csv"? row.names = 1)
+
+# années concernées
+BD_esp_G %>%
+  distinct(CensusYear)
+```
+
+
+```{r env_years}
+# Sélection des années RegePlot, individus vivants
+BD_env <- Guyafor %>%
+  filter(CensusYear %in% c(1992, 1993, 1995, 2005, 2008, 2013, 2016) &
+           CodeAlive==1 ) %>%
+  dplyr::select(idTree,Xutm,Yutm, Family,Genus,Species, CircCorr, CensusYear) %>% #drop columns
+  st_as_sf(coords = c('Xutm', 'Yutm'), crs=2972) %>% # data.frame -> sf object 'POINT' avec crs RFGF95 UTM 22N
+  dplyr::mutate(DBH=CircCorr/pi) %>%
+  dplyr::mutate(ST=((((DBH/100)^2)*pi)/4)) # DBH en mètres pour une Surface Terrière en m2
+
+# Ensemble des données + placette
+ BD_env_placette <- st_intersection(PlacettesP1_6_11_buffer, BD_env) %>% 
+    st_drop_geometry() # retrait géométrie
+ 
+# Calcule de la surface terrière
+BD_env_placette <- BD_env_placette %>%
+  group_by(idRegePlot, CensusYear)  %>% # calcule la surface terrière par année
+  dplyr::summarise(G = sum(ST), nombre_tiges = n()) %>%
+ # summarise : somme Surface Terriere par placette (m2) et nombre de tiges dans le buffer de 15m
+  ungroup()
+```
+
+Maintenant selon les analyses réalisées la création de la variable environnementale va fluctuer. Il nous faut : 
+* BD_env_G (les 6esp)
+* BD_JQ_G (Jacaranda & Qualea)
+* BD_JV_G (Jacaranda & Vouacapou)
+* BD_VP_1_G (Vouacapou & Pradosia)
+
+/!\ récupérer la mise à jour
+
+```{r BD_env_G}
+# Reliage à id.Rege de la matrice des 6esp
+BD_env_G <- dplyr::left_join(BD_esp_G, BD_env_placette, by = c( "idRegePlot", "CensusYear"))
+
+#write.csv(BD_env_G, file = "BD_esp_env.csv")
+# sélection colonnes d'intérêts 
+BD_env_G <- BD_env_G  %>% 
+  select(id, CensusYear, Plot, idRegePlot, idTree, DBH, G, nombre_tiges)
+
+#exportation
+write.csv(BD_env_G, file = "BD_env_G.csv")
+```
+
+
+```{r BD_JQ_G}
+# Reliage à id.Rege de la matrice Jacaranda & Qualea
+BD_JQ_G <- dplyr::left_join(BD_JQ, BD_env_placette, by = c("idRegePlot", "CensusYear"))
+
+# sélection colonnes d'intérêts 
+BD_JQ_G <- BD_JQ_G  %>% 
+  select(id, CensusYear, Plot, idRegePlot, idTree, DBH, G, nombre_tiges)
+
+#exportation
+write.csv(BD_JQ_G, file = "BD_JQ_G.csv")
+```
+
+
+```{r BD_JV_G}
+# Reliage à id.Rege de la matrice (Jacaranda & Vouacapou)
+BD_JV_G <- dplyr::left_join(BD_JV_1, BD_env_placette, by = c( "idRegePlot", "CensusYear"))
+
+# sélection colonnes d'intérêts 
+BD_JV_G <- BD_JV_G  %>% 
+  select(id, CensusYear, Plot, idRegePlot, idTree, DBH, G, nombre_tiges)
+
+#exportation
+write.csv(BD_JV_G, file = "BD_JV_G.csv")
+```
+
+
+```{r BD_VP_G}
+# Reliage à id.Rege de la matrice Vouacapou & Pradosia
+BD_VP_G <- dplyr::left_join(BD_VP_1, BD_env_placette, by = c( "idRegePlot", "CensusYear"))
+
+# sélection colonnes d'intérêts 
+BD_VP_G <- BD_VP_G  %>% 
+  select(id, CensusYear, Plot, idRegePlot, idTree, DBH, G, nombre_tiges)
+
+#exportation
+write.csv(BD_VP_G, file = "BD_VP_G.csv")
+```
+
+Nous avons un total de 1344 lignes car nous disposons de 7 années pour 192 placettes au total.
+
+## Extraction CHM
+
+A partir d'un raster nous cherchons à savoir l'environnement lumineux sur les 15m environnant le centre des placettes.
+
+```{r fonction CHM}
+# Création de la fonction de CHM
+Extraction_raster <- function(Buffer_Placettes, raster, type_et_annee) {
+
+# Création CHM_médian
+median_buffer<- raster::extract(raster, Buffer_Placettes,fun=median , na.rm=T) %>% as.data.frame() 
+names(median_buffer)[1] <- paste0('Median_', type_et_annee)
+
+# Création CHM Q1 (qualntile)
+buffer_25<- raster::extract(raster, Buffer_Placettes,fun=function(x, na.rm){quantile(x, .25, na.rm=T)} )%>% as.data.frame()  
+
+names(buffer_25)[1] <- paste0('Perc25_', type_et_annee)
+
+# Création CHM Q3
+buffer_75<- raster::extract(raster, Buffer_Placettes,fun=function(x, na.rm){quantile(x, .75, na.rm=T)} )%>% as.data.frame() 
+
+names(buffer_75)[1] <- paste0('Perc75_', type_et_annee)
+
+# Fusion de l'ensemble
+var_raster_placettes <- cbind(Buffer_Placettes,median_buffer, buffer_25 , buffer_75) %>%# tout est dans le bon ordre : cbind
+  st_drop_geometry() # geometry n'a plus d'interet à partir de là
+
+return(var_raster_placettes)
+ 
+}
+```
+
+Une fois cette fonction créée nous pouvons l'appliquer
+
+```{r exemple CHM}
+# CHM 2016
+CHM2016 <- raster('~/cours_r/Stage_M2/Cartographie/CHM_2016_P1_P6_P11_Paracou_RFGF95UTM22N.tif')
+
+
+var_chm_2016_buffer_placettes <- Extraction_raster(Buffer_Placettes = PlacettesP1_6_11_buffer, raster = CHM2016, type_et_annee = 'CHM_2016')
+
+
+# CHM 2004
+CHM2004 <- raster('~/cours_r/Stage_M2/Cartographie/CHM_2004_P1_P6_P11_Paracou_RFGF95UTM22N.tif')
+
+var_chm_2004_buffer_placettes <- Extraction_raster(Buffer_Placettes = PlacettesP1_6_11_buffer, raster = CHM2004, type_et_annee = 'CHM_2004')
+```
+
+## Assemblage
+
+Comme tout a été réaliser nous allons venir joindre G & CHM puis les extraire en un fichier csv, afin de pouvoir l'utiliser sans avoir à faire tourner ce script.
+
+```{r G & CHM}
+# Fusion placette
+RegePlots_varEnv<- left_join(var_ST, var_chm_2016_buffer_placettes %>%
+                               dplyr::select(-c(Line, Column, CoordType)) , by='idRegePlot') %>%
+  left_join(var_chm_2004_buffer_placettes %>%
+              dplyr::select(-c(Plot,Line, Column, CoordType)) , by='idRegePlot')
+
+# Extraction du tiddle
+#write.csv(RegePlots_varEnv, file ="Var_lux(2004_2016).csv")
+```
+
+Le document créé contient les informations sur les CHM des années 2004 et 2016, la surface terrière de la parcelle 1.
+
+Pour la suite des manipulations j'aurais besoin de savoir de quel plot font partie chaque subplot.
+
+
+

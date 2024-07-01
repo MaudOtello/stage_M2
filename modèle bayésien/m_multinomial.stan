@@ -1,6 +1,7 @@
 //Titre  : m_multinomial
 //Autrice : Maud OTELLO
 //Date : 23/04/2024
+
 data {
   int <lower = 0> N ; // Nombre d'observation (ligne)
   int <lower = 1> S ; // Nombre d'espèce (colonne)
@@ -17,4 +18,3 @@ model {
   }
   theta ~ uniform(0,1)    ;    // prior
 }
-

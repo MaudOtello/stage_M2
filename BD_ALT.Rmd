@@ -1,0 +1,212 @@
+---
+title: "ALT_test"
+author: "Maud"
+date: "2024-06-09"
+output: word_document
+---
+Ce script à pour objectif de faire tourner le modèle bayésien sur les données ALT. Alors je ne suis pas sensée devoir le faire mais bon j'ai pas confiance aux autres données donc par anticipation on va faire celui-ci.
+
+```{r packages}
+library(tidyverse) # pour le langage et toutes les fonctions associées (ggplot2, dplyr...)
+library(sf)        # pour la manipulation des couches shapefiles
+library(purrr)     # pour notre fonction
+library(rstan)     #pour faire tourner les fichiers R
+library(bayesplot) #pour les graphes posterieurs
+```
+
+```{r importation, include = F}
+# ALT
+paracou_ALT <- read.csv("~/cours_r/Stage_M2/ALT_Paracou9ha_20240430.csv")
+
+## renomme le nom de colonne pour s'ajuster aux autres jeu de données
+paracou_ALT <- paracou_ALT %>% 
+  rename(scientificName = ScientificName)
+
+## on enlève les "_" de la colonnes scientificName
+paracou_ALT <- paracou_ALT %>%
+  mutate(scientificName = gsub("_", " ", scientificName))
+```
+
+Pour pouvoir faire tourner le jeu de donnée il nous faut les espèces d'intérêts. Là nous prenons tout, tout tout. Alors quand tu sais que avec juste 6351 l'ordinateur prend une demi-journée pour tourner alors là on se pose la question de si c'est réellement une bonne idée de faire tourner ça en scred.
+
+```{r}
+# Filtre des DBH < 1cm, et des UTM falcifiées
+ALT <- paracou_ALT %>%
+  filter(!is.na(DBH) &
+         !is.na(scientificName)&
+           DBH > 1  &
+           Xutm != 0 &
+           Yutm !=0) 
+    
+# Spatialisation de notre jeu de donnée
+ALT <- ALT %>%
+  st_as_sf(coords = c("Xutm", "Yutm"), 
+           crs = st_crs(2972)) %>%
+  select(TreeID, scientificName, DBH, geometry)
+
+# Calcule de la surface terrière
+ALT <- ALT %>%
+  dplyr::mutate(SurfaceTerriere =((((DBH/100)^2)*pi)/4))
+```
+
+Pour pouvoir créer la colonne G nous avons réalisé une fonction.
+On pourrait essayé de calculer avec la taille des subplots si jamais ça plante. Pour commencer il nous faut 
+
+Il vous faut un df au format sf avec les colonnes suivantes : 
+* DBH [num] <lower = 0.01>
+* SurfaceTerriere [num] # surface terrière à l'unité
+* geometry[point(°)] # géométry de point (sf)
+
+```{r function}
+# Définir la fonction calculate_G
+calculate_G <- function(tree, data, radius = 15) {
+
+  # Vérifier que les colonnes présentes dans les données
+required_columns <- c("DBH", "SurfaceTerriere", "geometry")
+  if (!all(required_columns %in% colnames(data))) {
+    stop("Les données fournies ne contiennent pas toutes les colonnes requises. Assurez-vous que les données contiennent les colonnes : DBH, SurfaceTerriere et geometry.")
+  }
+  
+# Localisation de l'individu
+  tree_point <- tree$geometry
+  
+  # Création du buffer autour de l'individu
+  buffer <- st_buffer(tree_point, radius)
+  
+  # Sélection des arbres dans le buffer avec DBH > 10
+  trees_in_buffer <- data %>%
+    filter(st_intersects(geometry, buffer, sparse = FALSE)[,1] & DBH > 10)
+  
+  # Calcul de la somme des Surfaces Terrière des arbres sélectionnés
+  G <- sum(trees_in_buffer$SurfaceTerriere, na.rm = TRUE)
+  
+  return(G)
+}
+```
+
+Maintenant nous allons  mettre en application. C'est un grand moment j'ai le coeur qui palpite. Je sais que ça va pas marcher du premier coup mais j'ai toujours l'espoir que si !
+```{r exemple}
+# Création d'un jeu de données d'exemple
+trees_data <- tibble(
+  idTree = 1:5,
+  DBH = c(12, 8, 15, 9, 20),  # Diamètre à hauteur de poitrine (cm)
+  SurfaceTerriere = c(3.5, 2.2, 4.1, 1.8, 5.3),  # Surface terrière (m²)
+  x = c(10, 15, 20, 25, 30),  # Coordonnée x
+  y = c(10, 15, 20, 25, 30)   # Coordonnée y
+)
+
+# Créer "geometry" sous forme de points
+trees_data <- st_as_sf(trees_data, coords = c("x", "y"), crs = 4326)
+
+# Convertir les coordonnées en un système de coordonnées projeté approprié
+trees_data <- st_transform(trees_data, crs = 32633) # Exemple avec UTM zone 33N
+
+# Appliquer la fonction calculate_G à chaque ligne du jeu de données
+results <- trees_data %>%
+  rowwise() %>%
+  mutate(G = calculate_G(cur_data(), trees_data, radius = 10)) %>%
+  ungroup()
+
+# Affichage en texte brut des résultats
+print(results[, c("idTree", "DBH", "SurfaceTerriere", "G")])
+
+```
+
+
+```{r test}
+# application avec nos donneés
+ALT <- ALT %>%
+  st_transform(ALT, crs = 2972)
+
+toto <- ALT %>%
+  rowwise() %>%
+  mutate(G = calculate_G(cur_data(), ALT)) %>%
+  ungroup()
+```
+
+Bon après plusieurs heures de travails (2h) il a fini par me calculer la surface terrière. En revanche je ne suis pas sûr de l'exactitude de ses calcules. Tient pas exemple dans les coordonnées fictifs, on peut voir qu'il n'a pas fait la sommes dans le tampoons. Parce que les arbres sont dans des rayons de moins de 15m. A revoir si jamais.
+Maintenant on va créer la fameuse matrice. Bon on compte près de 625 espèces différentes sur les 9ha.
+
+```{r matrice}
+# Filtrage des 25 espèces d'intérêts
+scientificName_25 <- c("Symphonia globulifera","Moronobea coccinea", "Iryanthera hostmannii", "Vouacapoua americana", "Recordoxylon speciosum", "Symphonia sp.1", "Sterculia pruriens", "Bocoa prouacensis", "Iryanthera sagotiana", "Eperua grandiflora", "Tachigali melinonii", "Carapa surinamensis", "Eperua falcata", "Dicorynia guianensis", "Sextonia rubra", "Andira coriacea", "Virola michelii", "Virola surinamensis", "Pradosia cochlearia", "Didymopanax decaphyllus", "Qualea rosea", "Jacaranda copaia", "Goupia glabra", "Sterculia speciosa", "Platonia insignis")
+
+ALT_25 <- ALT %>%
+  filter(scientificName %in% scientificName_25)%>%
+  st_drop_geometry()
+str(ALT_25)
+
+# pivot_wider
+BD_ALT_25 <- ALT_25 %>%
+  group_by(TreeID,scientificName,DBH,SurfaceTerriere) %>% #pour que chaque ligne soit unique
+ dplyr::summarise(presence = ifelse(n() > 0, 1, 0)) %>% # ajout d'un numéro 1 si présence et d'un 0 si pas, n() représente le comptage par ligne 
+  pivot_wider(
+    names_from = scientificName,
+    values_from = presence,
+    values_fill = 0) %>%
+  ungroup()
+
+BD_ALT_25 <- BD_ALT_25 %>%
+  dplyr::mutate(id = row_number()) # nécessité d'un numéro d'observation
+
+#création de la matrice
+BD_ALT_25 <- BD_ALT_25 %>%
+  mutate(across(all_of(scientificName_25), as.integer)) # transformation en entier les colonnes spécifiées dans scientificName_25
+
+#exportation
+#write.csv(BD_ALT_25, file = "BD_ALT_25.csv")
+```
+Je viens de voir qu'il y a un problème de TreeID. On en décompte 5506 dans ALT_25$TreeID. 
+
+**Le code est correcte c'est notre jeu de donnée qui pose problème.**
+
+# Bayesien
+Maintenant nous allons tenter de faire tourner le code sur le modèle simple bayesien.
+```{r}
+# Nombre d'observations
+N = BD_ALT_25 %>%
+  nrow()
+
+# Nombre d'espèces
+S = 25
+
+# Comptenue de la matrice présence absence
+y = BD_ALT_25 %>%
+  select(-all_of(c("SurfaceTerriere", "DBH","TreeID")))
+
+# model
+fit_ALT <- stan("m_multinomial.stan", data = list(N = N, y = y, S = S), iter = 1000, chains = 4)
+
+#Convergence du modèle
+traceplot(fit_ALT)
+summary(fit_ALT, pars = "theta")
+
+#Distribution à posteriori
+mcmc_trace(fit_ALT)
+```
+
+Bon ça converge plutôt bien ça a pris que une 20taines de minutes.
+Essayons le second modèle avec moins d'it"ration par contre.
+```{r}
+x = BD_ALT_25 %>%
+  pull(DBH)
+
+fit_m2_ALT = stan("DM1.stan", data = list(N = N, S = S, Y = y, X = x), iter = 30, chains = 4)
+
+#Convergence du modèle
+traceplot(fit_m2_ALT)
+summary(fit_m2_ALT)
+```
+même ici ça ne converge pas. Bon on ne se décourage pas on va faire la suite des modèles.
+On fait la même chose mais cette fois-ci c'est la surface terrière que l'on fait tourner.
+```{r}
+x = BD_ALT_25 %>%
+  pull(SurfaceTerriere)
+
+fit_m3_ALT = stan("DM1.stan", data = list(N = N, S = S, Y = y, X = x), iter = 30, chains = 4)
+
+#Convergence du modèle
+traceplot(fit_m3_ALT)
+summary(fit_m3_ALT)
+```
+

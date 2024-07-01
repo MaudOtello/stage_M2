@@ -5,14 +5,14 @@ date: "2024-03-19"
 output: word_document
 ---
 
-Ce document est exploratoire pour la mise de données diamétrique. Il fait suite à *Description des données(v1)* qui lui dispose des toutes premières analyses faites avec les premiers lots de données.
-```{r environnement de travail}
+Ce document est exploratoire pour l'analyse des distributions diamétriques. Il fait suite à *Description des données(v1)* qui lui dispose des toutes premières analyses faites avec les premiers lots de données.
+```{r environnement de travail, include = F}
 setwd("~/cours_r/Stage_M2")
 ```
 
 ```{r Packages}
 library(tidyverse) #pour toutes les fonctions associées
-library(ggplot2) #pour les graphes
+library(ggplot2)   #pour les graphes
 library(foreach)   #pour lancer une action pour chacun de mes objets
 ```
 
@@ -21,19 +21,19 @@ On va réaliser la distribution diamétrique de 4 catégories supposée d'espèc
 Pour sélectionner les espèces d'intérêt on va partir de dire d'expert de Molino, et classer dans 4 catégories les espèces et voir ce qu'il en est : Ombre toute leur vie, lumière toute leur vie, ombre puis lumière au stade adulte, lumière puis ombre au stade adulte.
 
 Pour se faire la main on va commencer par utiliser les donénes de ALT sur la P16 et plus précisément les 5ha qui nous intéresse.
-```{r importation des données}
+```{r importation des données, include = F}
 paracou_9ha <- read.csv("~/cours_r/Stage_M2/understory_paracou_9ha_sp_20240126.csv")
 paracou_G <- paracou_9ha[,c(2:25)] #TreeID jusqu'à scientificName
 ```
 
 
-#Ombre toute leur vie
+# Ombre toute leur vie
 On va créer une liste des espèces tolérante à l'ombre toute leur vie pour pouvoir comparer entre elle leur courbes 
 ```{r création de liste}
 shade <- c("Anaxagorea dolichocarpa", "Cordia nodosa", "Diospyros capreifolia", "Eugenia coffeifolia", "Rinorea amapensis", "Tovomita brevistaminea", "Trymatococcus oligandrus")
 ```
 Création de cartes à la chaîne
-```{r pls courbe}
+```{r courbes}
 shade_c <- list()
 # Création des graphes ggplot pour chaque élément de shade
 for(k in 1:length(shade)) {
@@ -57,7 +57,7 @@ for (i in 1:length(shade_c)) {
 ```
 On veut faire une liste par tempérament d'étude pour pouvoir automatiser la création de graphique. On pourrait y faire passer une droite d'ajustement.
 
-#Lumière toute leur vie
+# Lumière toute leur vie
 Cecropia (toutes les spp.), Didymopanax decaphyllus, Goupia glabra, Inga alba, Tachigali melinonii
 
 ```{r distrib diamétrique lux}
@@ -85,7 +85,7 @@ for (i in 1:length(lux_c)) {
 }
 ```
 
-#Ombre puis limière au stade adulte
+# Ombre puis limière au stade adulte
 - Emergents : Humiria balsamifera, Pradosia cochlearia
 ```{r lombre puis lumière}
 #Canopée (clair)
@@ -110,7 +110,7 @@ for (i in 1:length(canope_c)) {
 Il semblerait que l'on ne dispose pas de ces espèces.
 
 ```{r l'ombre puis lumière 2}
-#Emergente (foncé)
+# Emergente (foncé)
 emerg <- c("Humiria balsamifera", "Pradosia cochlearia")
 
 # Création des graphes ggplot pour chaque plantes émergentes
@@ -134,7 +134,7 @@ for (i in 1:length(emerg_c)) {
 }
 ```
 
-#Lumière puis ombre au stade adulte
+# Lumière puis ombre au stade adulte
 
 ```{r lux puis ombre}
 lux_shade <- c("Trichilia schomburgkii"," Pourouma melinonii", "Pogonophora schomburgkiana", "Cordia sprucei", "Garcinia benthamiana", "Henriettea flavescens","Cupania scrobiculata", "Hebepetalum humiriifolium", "Inga loubryana")
@@ -160,7 +160,7 @@ for (i in 1:length(lux_shade_c)) {
 }
 ```
 
-#Contre vérification
+# Contre vérification
 
 ```{r avec Giacomo}
 #Test avec G
@@ -186,5 +186,7 @@ new$ord <- order(new$DBH)
 new$cdf <- 1-(new$ord/max(new$ord))
 ggplot(data = new, aes(x = log(DBH), y = log(cdf))) + geom_point()
 ```
-#CONCLUSION
-Après cette phase d'observation de chacune des espèces d'intérêt nous avons pu voir que nous ne disposion pas assez de 
+# CONCLUSION
+Après cette phase d'observation de chacune des espèces d'intérêts nous avons pu voir que pour certaines espèces nous ne disposons pas assez d'individus.
+
+**Fin du document**

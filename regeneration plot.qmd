@@ -1,0 +1,256 @@
+---
+title: "Regenaration plot"
+format: html
+editor: visual
+---
+
+Nous avons pu voir que dans les données de *Regenaration plot* qu'il y a peu d'individus juvénile. L'objectif de ce script est de voir le nombre d'individus présents par espèces en juvénile et en adulte par parcelles. Il vient en complément du document [Description des données]{.underline}. Nous allons le faire pour les 6 espèces d'intérêts dans les parcelles 1, 6, et 11.
+
+```{r environnement de travail, include = FALSE}
+setwd("~/cours_r/Stage_M2")
+```
+
+```{r Packages, message = FALSE}
+library(tidyverse) #pour toutes les fonctions associées
+library(knitr)     #pour l'affichage des tableaux
+library(sf)        #pour la manipulation des couches shapefiles
+library(ggspatial) #scale bars and north arrows
+library(foreach)   #lancer une action pour chacun de mes objets
+```
+
+```{r 6esp}
+# Sélection des espèces
+esp_6 <- c("Dicorynia guianensis", "Pradosia cochlearia", "Iryanthera sagotiana", "Qualea rosea", "Vouacapoua americana", "Jacaranda copaia")
+```
+
+# Parcelle 1
+## Importation des données
+```{r création adult p1, include=FALSE}
+#ADULTs : arbre > 10 cm de DBH
+P1_all <- read.csv("~/cours_r/Stage_M2/ParacouP1AllYears.csv", comment.char="#")
+
+## sélection de l'année 2016
+P1_adult <- P1_all %>%
+  filter(CensusYear == 2016)
+
+## sélection des colonnes utiles
+P1_adult <- P1_adult %>%
+  select("idTree","Xutm","Yutm","Family","Genus","Species","Botanist","CensusYear","Circ","CircCorr")
+
+## création colonne scientificName
+P1_adult <- P1_adult %>%
+  mutate(scientificName = paste(Genus, Species, sep = " "))
+
+## création colonne DBH
+P1_adult <- P1_adult %>%
+  mutate(DBH = 
+           if_else(is.na(Circ), CircCorr/pi, Circ/pi))
+
+```
+
+```{r création juvenil p1, include = FALSE}
+# JUVENILEs : arbre < 10 cm de DBH
+paracou_J <- read.csv("~/cours_r/Stage_M2/2024ParacouJuveniles(v2).csv", sep=";", comment.char="#")
+
+## sélection de la parcelle 1
+P1_juvenil <- paracou_J %>%
+  filter (Project == "ParacouRegeneration" &
+            Plot == 1 &
+            CensusYear == 2016 &
+            CodeAlive == 1)
+
+## sélection des colonnes utiles
+P1_juvenil <- P1_juvenil %>%
+  select("idTree","Xutm","Yutm","Family","Genus","Species","Botanist","CensusYear","Circ","CircCorr")
+
+## Création colonne scientificName
+P1_juvenil <- P1_juvenil %>%
+  mutate(scientificName = paste(Genus, Species, sep = " "))
+
+## Création colonne DBH
+P1_juvenil <- P1_juvenil %>%
+  mutate(DBH = 
+           if_else(is.na(Circ), CircCorr/pi, Circ/pi))
+```
+
+## Max, min, par espèce
+
+```{r adult}
+adult <- P1_adult %>%
+  group_by(scientificName)%>%
+  filter (scientificName %in% esp_6) %>%
+  summarise (min = min(DBH), #pas mutate
+          max = max(DBH),
+          nombre = n()) %>% #pas count (dans mutate)
+  select(scientificName, min, max, nombre)%>%
+  ungroup()
+```
+
+```{r juvenil}
+juvenil <- P1_juvenil %>%
+  group_by(scientificName)%>%
+  filter (scientificName %in% esp_6) %>%
+  summarise (min = min(DBH), #pas mutate
+          max = max(DBH),
+          nombre = n()) %>% #pas count (dans mutate)
+  select(scientificName, min, max, nombre)%>%
+  complete(scientificName = esp_6, fill = list(min = 0, max = 0, nombre = 0))%>%
+  ungroup()
+
+# Fusion 
+tab_p1 <- left_join(juvenil, adult, by = "scientificName")
+
+```
+
+# Parcelle 6
+
+## Importation des données
+```{r création adult p6, include=FALSE}
+#ADULTs : arbre > 10 cm de DBH
+P6_all <- read.csv("~/cours_r/Stage_M2/ParacouP6AllYears.csv", comment.char="#")
+
+## sélection de l'année 2016
+P6_adult <- P6_all %>%
+  filter(CensusYear == 2016)
+
+## sélection des colonnes utiles
+P6_adult <- P6_adult %>%
+  select("idTree","Xutm","Yutm","Family","Genus","Species","Botanist","CensusYear","Circ","CircCorr")
+
+## création colonne scientificName
+P6_adult <- P6_adult %>%
+  mutate(scientificName = paste(Genus, Species, sep = " "))
+
+## création colonne DBH
+P6_adult <- P6_adult %>%
+  mutate(DBH = 
+           if_else(is.na(Circ), CircCorr/pi, Circ/pi))
+```
+
+```{r création juvenil p6, include = FALSE}
+# JUVENILEs : arbre < 10 cm de DBH
+paracou_J <- read.csv("~/cours_r/Stage_M2/2024ParacouJuveniles(v2).csv", sep=";", comment.char="#")
+
+## sélection de la parcelle 6
+P6_juvenil <- paracou_J %>%
+  filter (Project == "ParacouRegeneration" &
+            Plot == 6 &
+            CensusYear == 2016 &
+            CodeAlive == 1)
+
+## sélection des colonnes utiles
+P6_juvenil <- P6_juvenil %>%
+  select("idTree","Xutm","Yutm","Family","Genus","Species","Botanist","CensusYear","Circ","CircCorr")
+
+## Création colonne scientificName
+P6_juvenil <- P6_juvenil %>%
+  mutate(scientificName = paste(Genus, Species, sep = " "))
+
+## Création colonne DBH
+P6_juvenil <- P6_juvenil %>%
+  mutate(DBH = 
+           if_else(is.na(Circ), CircCorr/pi, Circ/pi))
+```
+
+## Max, min
+```{r adult p6}
+adult <- P6_adult %>%
+  group_by(scientificName)%>%
+  filter (scientificName %in% esp_6) %>%
+  summarise (min = min(DBH), #pas mutate
+          max = max(DBH),
+          nombre = n()) %>% #pas count (dans mutate)
+  select(scientificName, min, max, nombre)%>%
+  ungroup()
+```
+
+```{r juvenil p6}
+juvenil <- P6_juvenil %>%
+  group_by(scientificName)%>%
+  filter (scientificName %in% esp_6) %>%
+  summarise (min = min(DBH), #pas mutate
+          max = max(DBH),
+          nombre = n()) %>% #pas count (dans mutate)
+  select(scientificName, min, max, nombre)%>%
+  complete(scientificName = esp_6, fill = list(min = 0, max = 0, nombre = 0))%>%
+  ungroup()
+
+# Fusion 
+tab_p6 <- left_join(juvenil, adult, by = "scientificName")
+```
+
+# Parcelle 11
+## Importation des données
+```{r création adult p6, include=FALSE}
+#ADULTs : arbre > 10 cm de DBH
+P11_all <- read.csv("~/cours_r/Stage_M2/ParacouP11AllYears.csv", comment.char="#")
+
+## sélection de l'année 2016
+P11_adult <- P11_all %>%
+  filter(CensusYear == 2016)
+
+## sélection des colonnes utiles
+P11_adult <- P11_adult %>%
+  select("idTree","Xutm","Yutm","Family","Genus","Species","Botanist","CensusYear","Circ","CircCorr")
+
+## création colonne scientificName
+P11_adult <- P11_adult %>%
+  mutate(scientificName = paste(Genus, Species, sep = " "))
+
+## création colonne DBH
+P11_adult <- P11_adult %>%
+  mutate(DBH = 
+           if_else(is.na(Circ), CircCorr/pi, Circ/pi))
+```
+
+```{r création juvenil p11, include = FALSE}
+# JUVENILEs : arbre < 10 cm de DBH
+paracou_J <- read.csv("~/cours_r/Stage_M2/2024ParacouJuveniles(v2).csv", sep=";", comment.char="#")
+
+## sélection de la parcelle 11
+P11_juvenil <- paracou_J %>%
+  filter (Project == "ParacouRegeneration" &
+            Plot == 11 &
+            CensusYear == 2016 &
+            CodeAlive == 1)
+
+## sélection des colonnes utiles
+P11_juvenil <- P11_juvenil %>%
+  select("idTree","Xutm","Yutm","Family","Genus","Species","Botanist","CensusYear","Circ","CircCorr")
+
+## Création colonne scientificName
+P11_juvenil <- P11_juvenil %>%
+  mutate(scientificName = paste(Genus, Species, sep = " "))
+
+## Création colonne DBH
+P11_juvenil <- P11_juvenil %>%
+  mutate(DBH = 
+           if_else(is.na(Circ), CircCorr/pi, Circ/pi))
+```
+
+## Max, min
+```{r adult p11}
+adult <- P11_adult %>%
+  group_by(scientificName)%>%
+  filter (scientificName %in% esp_6) %>%
+  summarise (min = min(DBH), #pas mutate
+          max = max(DBH),
+          nombre = n()) %>% #pas count (dans mutate)
+  select(scientificName, min, max, nombre)%>%
+  ungroup()
+```
+
+```{r juvenil p11}
+juvenil <- P11_juvenil %>%
+  group_by(scientificName)%>%
+  filter (scientificName %in% esp_6) %>%
+  summarise (min = min(DBH), #pas mutate
+          max = max(DBH),
+          nombre = n()) %>% #pas count (dans mutate)
+  select(scientificName, min, max, nombre)%>%
+  complete(scientificName = esp_6, fill = list(min = 0, max = 0, nombre = 0))%>%
+  ungroup()
+
+# Fusion 
+tab_p11 <- left_join(juvenil, adult, by = "scientificName")
+```

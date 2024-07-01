@@ -62,7 +62,7 @@ for(k in 1:length (esp_6)) {
          cdf = 1 - (ord / max(ord))) %>%
     ggplot(aes(x = log(DBH), y = log(cdf))) +
     geom_point() +
-    geom_smooth(method = "lm", color = "tomato" ) +
+    geom_smooth(method = "lm", color = "tomato", se = T, fill = "orange") +
     labs(x = "log(DBH)", y = "Probabilité", title = paste("Cumulative distribution de", esp_6[k])) +
     #ajout de la droite d'équation en haut à droite
     geom_text(aes(label = paste("y =", round(coef(lm(cdf ~ log(DBH)))[[2]], 2), "x +", round(coef(lm(cdf ~ log(DBH)))[[1]], 2))),
@@ -75,7 +75,51 @@ for(k in 1:length (esp_6)) {
 #Affichage des graphes
 print(cdf_6)
 ```
-La comparaison à l'aide d'une droite (comparaison des coeficiens de pente), reste quand même bien limité. 
+
+### Intervalles de confiance
+Nous avons pu faire apparaître sur le graph les courbes.
+
+Maintenant nous allons regarder les interavales de confiance des coefficients de droite. J'aimerai que le résultat apparaît dans un tableau avec pour chaque ligne une espèces. 
+```{r intervalle de confiance & droite}
+# Création de la liste pour stocker les résultats
+result_list <- list()
+
+# Boucle à travers chaque espèce
+for (esp in esp_6) {
+  # Filtre données
+  ml_data <- paracou_ALT %>%
+    filter(scientificName == esp) %>% 
+    select(DBH) %>%
+    na.omit() %>%
+    mutate(DBH = sort(DBH),
+           ord = order(DBH),
+           cdf = 1 - (ord / max(ord)))
+  
+  # Modèle linéaire
+  model <- lm(log(cdf) ~ log(DBH), data = ml_data %>% filter(cdf != 0))
+  
+  # Intervalles de confiance
+  conf_intervals <- confint(model)
+  
+  # Coefficients de la droite d'équation
+  coefficients <- coef(model)
+  
+  # Extraire les informations
+  intercept <- coefficients[1]
+  slope <- coefficients[2]
+  lower_confint <- conf_intervals[2, 1] # 2.5% CI
+  upper_confint <- conf_intervals[2, 2] # 97.5% CI
+  
+  # Stocker les résultats dans la liste
+  result_list[[esp]] <- c(Intercept = intercept, Slope = slope, Lower_CI = lower_confint, Upper_CI = upper_confint)
+}
+
+# Convertir la liste en data frame
+result_df <- do.call(rbind, result_list)
+
+# Afficher le data frame
+print(result_df)
+```
 
 # Exponentiel
 Nous allons appliquer une transformation de type exponentiel à notre modèle. Pour pouvoir faire cette transformation nous devons ajouter à notre jeu de donné une colonne cdf. Nous nous voulons complémentaire.
@@ -111,7 +155,7 @@ exp_6 <- list()
 #Création des courbes
 for(k in 1:length(esp_6)) {
   plot.exp <- paracou_esp6[[k]] %>% 
-    ggplot(aes(x = log(DBH), y = cdf)) +
+    ggplot(aes(x = log(DBH), y = exp(cdf))) +
     geom_point() +
     geom_line(aes(x = log(DBH), y = exp(cdf)), color = "tomato") +
     labs(x = "log(DBH)", y = "Probabilité", title = paste("Cumulative distribution de", esp_6[k]))
@@ -122,6 +166,7 @@ for(k in 1:length(esp_6)) {
 print(exp_6)
 ```
 Alors c'est bien joli tout ça mais ça ne veut rien dire une probabilité exponentielle. Et puis d'après les cartes que l'on a il nous affiche à 2. 
+
 ## General linear model
 Nous aimerions appliquer une transformation exponentiel à nos jeu de donner. Et donc appliquer un glm de type poisson sur la distribution de nos points. Une fois ce glm créer nous pourrions comparer entre elles les paramètres des modèles.
 
@@ -159,7 +204,7 @@ library(reshape2)
 paracou_exp <- dcast()
 ```
 
-#Graphique
+## Graphique
 ```{r}
 paracou_DBH %>%
   ggplot(aes(x = DBH, y = n, color = scientificName)) +
@@ -174,8 +219,9 @@ paracou_DBH %>%
 ```
 
 plus simple nous allons dans un premier temps transformer nos DBH en integer
-#le moment du n'importe quoi à revoir demain matin
-En fait le problème qui se passe est que le tableau est pas sous la bonne forme. EN ligne il nous faudrait le nombre d'occurence par DBH avec un pas de 1cm et en colonnes les 6 espèces. A partir de là on pourrait faire des graphes simplistes
+
+# le moment du n'importe quoi à revoir demain matin
+En fait le problème qui se passe est que le tableau est pas sous la bonne forme. En ligne il nous faudrait le nombre d'occurences par DBH avec un pas de 1cm et en colonnes les 6 espèces. A partir de là on pourrait faire des graphes simplistes
 
 
 Que se passe-t-il quand on l'applique directement à notre jeu de donnée diamétrique.16h48 demain on réfléchira si oui ou non ça a un sens de faire ça.
@@ -218,12 +264,5 @@ paracou_ALT %>%
 ```
 
 #Poubelle
-```{r}
-#ajout de la droite d'équation en haut à droite
-    # geom_text(aes(label = paste("y =", round(coef(lm(cdf ~ log(DBH)))[[2]], 2), "x +", round(coef(lm(cdf ~ log(DBH)))[[1]], 2))),
-            # x = Inf, y = Inf, hjust = 1, vjust = 1, size = 4, color = "tomato")
-
-#ajout du graphique à la liste  
-```
 
 

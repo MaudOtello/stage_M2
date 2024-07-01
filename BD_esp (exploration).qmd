@@ -12,11 +12,72 @@ library(tidyverse) # Pour langage et packages associés
 ```
 
 ```{r Importation, include = F}
-Juveniles <- juveniles_P1_6_11.csv
 Placettes
 juveniles_P1_6_11_corr
-guyafor_fin == BD_env
+guyafor_fin
+BD_esp
 ```
+
+```{r importation Juveniles, include = F}
+Guyafor_Juveniles <- read.csv("~/cours_r/Stage_M2/2024ParacouJuveniles(v2).csv", sep=";", comment.char="#")
+
+# Création d'une colonne scientificName
+Juveniles <- Guyafor_Juveniles %>%
+  mutate(scientificName = paste(Genus, Species, sep = " "))
+
+# Création d'une colonne DBH
+Juveniles <- Juveniles %>%
+  mutate(DBH = Circ/pi)
+
+# Application des filtres
+Juveniles <- Juveniles %>%
+  filter(!is.na(Xutm) & 
+    Plot %in% c(1, 6, 11) & 
+    CodeAlive == 1) &
+    Protocole == "Regeneration" %>%
+  st_as_sf(coords = c("Xutm", "Yutm"), 
+           crs = st_crs(2972)) 
+
+# Nombre total d'individus
+length(Juveniles$idTree)
+
+# Faisons parler les chiffres
+Juveniles_df <- summarySE(Juveniles, measurevar="DBH",groupvars=c("Plot","CensusYear"))
+```
+
+On part de base avec : 5058 contenant les individus vivant des parcelles 1, 6, et 11. Tous confondu (années et tout ça).
+
+juveniles_P1_6_11 contient la jointures entre le placettes et les localisations de mes juvéniles. On a 64 placettes par parcelles, en ayant 3 parcelles ça nous fait 192, que l'on multiplie par le nombre d'années.
+
+On peut voir qu'il n'y a pas d'individus en 2003 sur les parcelles 1 et 6.
+
+```{r jointure_subplot}
+length(is.na(Placette$CoordType)) #1536 placettes sans correspondante
+length(unique(Juveniles$CensusYear)) #9 années
+
+# Pourquoi on passe de 20 251 obs à 6 196 obs ?
+juveniles_P1_6_11 %>%
+  select(scientificName, idTree, CensusYear, Plot,idRegePlot) %>%
+  filter(Plot == 11)%>%
+ ggplot() +
+    geom_sf(aes(color= idRegePlot)) +
+    theme_light() +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+    labs(title = paste("Localisation des individus en fonction des placettes"), color = "idRegePlot", fill = "idRegePlot")
+
+# Localisation des placettes
+Juveniles %>%
+  filter(Plot == 11 &
+           CensusYear == 2003)%>%
+ ggplot() +
+    geom_sf(aes(color = DBH)) +
+    theme_light() +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+    labs(title = paste("Localisation des individus en fonction des placettes"), color = "idRegePlot")
+
+```
+
+Je ne sais pas pourquoi cette variation
 
 # Description des juveniles
 
@@ -36,8 +97,10 @@ juveniles_P1_6_11 %>%
   theme(strip.background = element_rect(fill = "black"))+
   theme(axis.text.x = element_text(angle = 30, hjust = 1))
   
-# Faisons parler les chiffres
-Juveniles_df <- summarySE(juveniles_P1_6_11, measurevar="DBH",groupvars=c("Plot","CensusYear"))
+# Regardons les années par parcelles
+Plot_Year <- Juveniles %>%
+  group_by(CensusYear, Plot)%>%
+  distinct(CensusYear)
 
 ```
 
@@ -45,7 +108,23 @@ C'est étrange sur certaines parcelles nous pouvons noter la présence de outlay
 
 **/!\\ mettre de côté les analyses de 2003. /!\\**
 
-Au niveau du nombre total de juveniles, toutes années confondues, nous sommes à P1 = 582, P6 = 455, P11 = 923. La P11 a quasiment le double d'individus ! Intéressant de voir la distribution de l'ensemble de ces données.
+**A noter que dans Guyafor l'année 2002 n'a pas été rescensée.**
+
+J'aimerai savoir la sommes des individus par parcelles
+
+Au niveau du nombre total de juveniles par année ça varie énormément. La P11 a quasiment le double d'individus ! Intéressant de voir la distribution de l'ensemble de ces données.
+
+```{r}
+Juveniles_df %>%
+  group_by(Plot)%>%
+ggplot(aes(x = CensusYear, y = N, color = as.factor(Plot))) +
+  geom_point() +
+  labs(
+    x = "Année",
+    y = "Nombre de tiges")+
+  scale_x_continuous(breaks = seq(1990, 2018, by = 5)) + 
+  theme_minimal()
+```
 
 ## Diamètre corrigée
 
@@ -56,7 +135,7 @@ juveniles_P1_6_11_corr <-juveniles_P1_6_11_corr %>%
   rename(DBH_corr = Diameter_TreeDataCor)
 ```
 
-```{r}
+```{r boxplot_Plot}
 juveniles_P1_6_11_corr %>%
   ggplot(aes(y = DBH_corr, x = as.factor(Year), fill = Plot))+
   geom_boxplot()+
@@ -104,7 +183,6 @@ juveniles_P1_6_11_corr %>%
 juveniles_P1_6_11_corr %>%
   filter(DBH_corr > 10)%>%
   nrow()
-
 ```
 
 # Adultes
@@ -125,7 +203,6 @@ Adultes_P1_6_11 %>%
   
 # Faisons parler les chiffres
 Adultes_df <- summarySE(Adultes_P1_6_11, measurevar="DBH",groupvars=c("Plot","CensusYear"))
-
 ```
 
 Ici, tout est uniforme. Il ne semble pas y avoir de valeurs abbérantes. Les années 2003 sont bien référencées. Voyons voir les DBH extrêmes DBH_max : 137,51 cm et un seul individus \< 10 de DBH.
@@ -147,9 +224,44 @@ Notre étude s'étends sur 8 années sur les parcelles 1, 6, et 11. Nous compton
 Maintenant j'aimerai voir par année et par plot le nombre d'individus que j'ai, le DBH moyen des trucs comme ça;
 
 ```{r}
+# Nombre d'individus par plot et année
 G_summary <- summarySE(Guyafor_fin, measurevar="DBH",groupvars=c("Plot","CensusYear"))
 
+# Nombre d'individus par plot et année et espèce
 G_summary_esp <- summarySE(Guyafor_fin, measurevar="DBH",groupvars=c("Plot","CensusYear", "scientificName"))
-```
 
-Et par espèces
+# Nombre d'individus par espèce
+G_table <- Guyafor_fin %>%
+  group_by(scientificName) %>%
+  dplyr::summarise(
+    Effectif = n(),             # Nombre d'occurrences
+    Min_DBH = min(DBH, na.rm = TRUE),   # Valeur minimale de DBH
+Max_DBH = round(max(DBH, na.rm = TRUE),1))  # Valeur maximale de DBH
+
+kable(G_table)
+
+# Nombre total
+Guyafor_DBH_plot <- Guyafor_fin %>%
+ggplot(aes(x = DBH))+ 
+  geom_histogram(stat="count",fill = "turquoise4", color = "black")
+
+ggsave(filename = "Guyafor_DBH_plot.pdf",
+         plot = Guyafor_DBH_plot,
+  width = 11, height = 8)
+
+# Par espèces
+Guyafor_DBH_plot_esp <- Guyafor_fin %>%
+  filter(scientificName %in% esp_6) %>%
+# création de l'objet ggplot
+    ggplot(aes (x = DBH)) +
+    geom_histogram(breaks = seq(1, 100, by = 1 ),fill = "turquoise3") + #début à 1
+    theme_light() +
+    labs(x = "DBH", y = "Densité") +
+    facet_wrap(vars(scientificName), scales = "free", ncol = 3) +
+  theme_light()+
+  theme(strip.background = element_rect(fill = "black"))
+  
+ggsave(filename = "Guyafor_DBH_plot_esp.pdf",
+         plot = Guyafor_DBH_plot_esp,
+  width = 11, height = 8)
+```

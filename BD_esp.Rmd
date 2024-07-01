@@ -14,6 +14,7 @@ setwd("C:/Users/Maud Otello/Documents/cours_r/Stage_M2")
 ```{r Packages}
 library(tidyverse) # Pour le langage et les fonction associées
 library(sf)        # Pour manipuler les shp
+library(Rmisc)     # Pour summarySE
 library(dplyr)     # car par idnavertance désactivé
 library(data.table)# le package des fonctions
 ```
@@ -29,13 +30,11 @@ Guyafor_Juveniles <- read.csv("~/cours_r/Stage_M2/2024ParacouJuveniles(v2).csv",
 ```
 
 ```{r Juveniles}
-# Création d'une colonne scientificName
+# Mise en forme du df
 Juveniles <- Guyafor_Juveniles %>%
-  mutate(scientificName = paste(Genus, Species, sep = " "))
-
-# Création d'une colonne DBH
-Juveniles <- Juveniles %>%
-  mutate(DBH = Circ/pi)
+  filter(Protocole == "Regeneration")%>%
+  mutate(scientificName = paste(Genus, Species, sep = " "),
+           DBH = Circ/pi)
 
 # Application des filtres
 Juveniles <- Juveniles %>%
@@ -43,10 +42,7 @@ Juveniles <- Juveniles %>%
     Plot %in% c(1, 6, 11) & 
     CodeAlive == 1) %>%
   st_as_sf(coords = c("Xutm", "Yutm"), 
-           crs = st_crs(2972)) 
-
-# vérifier qu'on ne "perde" pas d'arbres en route! (pour les autres parcelles et les autres années)
-length(Juveniles$idTree)
+           crs = st_crs(2972))
 ```
 
 Maintenant localisons les juvéniles dans leurs bonnes placettes.
@@ -59,7 +55,7 @@ setwd("C:/Users/Maud Otello/Documents/cours_r/Stage_M2/Cartographie")
 Placettes <- st_read('RegenerationPlots.shp')
 ```
 
-```{r juveniles_P1_6_11}
+```{r Juveniles_placette}
 # Sélection des centres 'réels' 
 PlacettesP1_6_11 <- Placettes %>% 
   filter(Plot %in% c(1,6,11) &
@@ -72,22 +68,36 @@ st_crs(PlacettesP1_6_11) <- st_crs(2972)
 PlacettesP1_6_11_buffer5m <- st_buffer(PlacettesP1_6_11,5)  
 
 # Fusion des placettes aux Juveniles
-juveniles_P1_6_11 <- st_intersection(PlacettesP1_6_11_buffer5m, Juveniles)
+Juveniles_placette <- st_intersection(PlacettesP1_6_11_buffer5m, Juveniles)
 
-# Pas besoin de la spatialisation anymore + Guyafor pas 2002
-juveniles_P1_6_11 <- juveniles_P1_6_11 %>%
+# Pas besoin de la spatialisation anymore + Guyafor pas 2002 + pas 2003, P1 & 6
+Juveniles_placette <- Juveniles_placette %>%
   filter(CensusYear != 2002)%>%
+  filter(CensusYear != 2003)%>%
   st_drop_geometry() # Geometry inutile à présent, retour à un tibble
 
 # Création d'un data.frame
-#write.csv(juveniles_P1_6_11,file ="juveniles_P1_6_11.csv")
+#write.csv(Juveniles_placette,file ="Juveniles_placette.csv")
 ```
 
-Alors on peut voir qu'il existe une très grande différence de variation entre les parcelles. Il existe quand même une grande différence observation entre les 3 parcelles sur l'ensemble des années P1 = 582, P6 = 455, P11 = 923. La P11 a quasiment le double d'individus ! Intéressant de voir la distribution de l'ensemble de ces données.
+Normalement regeneration plots constitut l'inventaire de 25 espèces. Ce n'est pas tout à fait notre cas dans notre jeu de donnée, alors nous allons appliquer un filtre.
 
-## Correction des diamètres
+```{r scientificName}
+# Dispose de seulement 24 espèces
+unique_x <- unique(Juveniles_placette$scientificName)
 
-Lors du protocole, à l'année N+1, nous avons pu voir que certains individus disposent de DBH\<1 cm. Cela a pu être expliqué par la présence de blessures. Notre étude s'intéresse à la compétition à la lumière. En incluant ces erreurs cela influencerait les résultats relier à la lumière. Pour pallier, nous proposons à l'aide du Package treed::DiameterCorrect (Badouard et al, 2022) pour nous permettre d'appliquer une correction sur les diamètres aux valeurs abérantes.
+scientificName_25 <- c("Symphonia globulifera","Moronobea coccinea", "Iryanthera hostmannii", "Vouacapoua americana", "Recordoxylon speciosum", "Symphonia sp.1", "Sterculia pruriens", "Bocoa prouacensis", "Iryanthera sagotiana", "Eperua grandiflora", "Tachigali melinonii", "Carapa surinamensis", "Eperua falcata", "Dicorynia guianensis", "Sextonia rubra", "Andira coriacea", "Virola michelii", "Virola surinamensis", "Pradosia cochlearia", "Didymopanax decaphyllus", "Qualea rosea", "Jacaranda copaia", "Goupia glabra", "Sterculia speciosa", "Platonia insignis")
+
+# vérifier les différences
+setdiff(unique_x, scientificName_25)
+
+Juveniles_placette <- Juveniles_placette %>%
+  filter(scientificName %in% scientificName_25)
+```
+
+## Correction des diamètres (version 1)
+
+Lors du protocole, à l'année N+1, nous avons pu voir que certains individus disposent de DBH\<1 cm. Cela a pu être expliqué par la présence de blessures. Notre étude s'intéresse à la compétition à la lumière. En incluant ces erreurs cela influencerait les résultats relier à la lumière. Pour pallier, nous proposons à l'aide du Package *treedData::DiameterCorrect* (Badouard et al, 2022) pour nous permettre d'appliquer une correction sur les diamètres aux valeurs abbérantes.
 
 ```{r fonctions}
 source("C:/Users/Maud Otello/Documents/cours_r/Stage_M2/script/DiameterCorrection.R")
@@ -107,32 +117,82 @@ source("C:/Users/Maud Otello/Documents/cours_r/Stage_M2/script/Select2FramingVal
 source("C:/Users/Maud Otello/Documents/cours_r/Stage_M2/script/Individual Diameter Shift Correction.R")
 
 source("C:/Users/Maud Otello/Documents/cours_r/Stage_M2/script/Correction of 2 diameter values.R")
+
+source("C:/Users/Maud Otello/Documents/cours_r/Stage_M2/script/DiameterCorrectionPlot.R")
 ```
 
 ```{r DBH_corr}
-juveniles_corr <- juveniles_P1_6_11 %>%
-  select(Plot, idTree,scientificName, DBH,CensusYear,POM,CodeAlive)
+Juveniles_acorr <- Juveniles_placette %>%
+  select(Plot, idTree, idRegePlot,scientificName, DBH,CensusYear,POM,CodeAlive)
 
-colnames(juveniles_corr) <- c("Plot","IdTree", "ScientificName_TreeDataCor", "Diameter", "Year", "POM","LifeStatus")
+colnames(Juveniles_acorr) <- c("Plot","IdTree","idRegePlot", "ScientificName_TreeDataCor", "Diameter", "Year", "POM","LifeStatus")
   
-juveniles_corr <- juveniles_corr %>%
+Juveniles_acorr <- Juveniles_acorr %>%
   mutate(
   IdTree = as.character(IdTree),
   ScientificName_TreeDataCor = as.character(ScientificName_TreeDataCor),
   Diameter = as.numeric(Diameter),
-  Year = as.factor(Year),
-  POM = as.numeric(POM)
+  Year = as.numeric(Year),
+  POM = as.factor(POM)
 )
-  
-juveniles_P1_6_11_corr <- DiameterCorrection(juveniles_corr, NegativeGrowthThreshold = 0,
+# application fonction  
+Juveniles_corr <- DiameterCorrection(Juveniles_acorr, NegativeGrowthThreshold = 0,
                    WhatToCorrect = c("punctual", "shift"),
                    CorrectionType = c("individual"), 
                    DBHCorForDeadTrees = F)
-# exportation
-#write.csv(juveniles_P1_6_11_corr, file = "juveniles_P1_6_11_corr.csv")
 ```
 
-Les résultats du diamètre corriger est extrêmement chelou.
+Nous allons regarder l'ensemble des plots pour pouvoir
+
+```{r DBH_corr}
+# Vérification sur 4 espèces sans changement
+Juveniles_4_corr  <- Juveniles_corr %>%
+  filter(IdTree %in% c(82849, 285609,  285710, 285831)) %>%
+  mutate(POM = 130) %>%
+  dplyr::rename(ScientificName = ScientificName_TreeDataCor)%>%
+DiameterCorrectionPlot(OnlyCorrected = F,
+                       SeveralWindows = T)
+# Espèces d'intérêts
+esp_6 <- c("Dicorynia guianensis", "Pradosia cochlearia", "Iryanthera sagotiana", "Qualea rosea", "Vouacapoua americana", "Jacaranda copaia")
+
+# Exportation
+write.csv(Juveniles_corr, file = "Juveniles_esp_6_corr.csv")
+```
+
+Un affichage des plots a été réalisé dans le document \*\* par Vincyane Badouart qui permet de voir que la fonction à certain moment créée un biais de sur-croissance.
+
+```{r Juveniles_esp_6, include = F}
+# importation des valeurs corrigées
+Juveniles_esp_6_corr <- read.csv("~/cours_r/Stage_M2/Juveniles_esp_6_corr.csv", row.names = 1)
+```
+
+Maintenant que nous avons nos espèces d'intérêt nous allons changer le nom de nos colonnes.
+
+```{r DBH_corr_2}
+# changement du nom des colonnes
+Juveniles_esp_6 <- Juveniles_esp_6_corr %>%
+  as.data.frame() %>%
+  dplyr::rename(idTree = IdTree,
+         CensusYear = Year,
+         DBH = Diameter,
+         DBH_corr = Diameter_TreeDataCor,
+         scientificName = ScientificName_TreeDataCor) %>%
+  select(Plot, CensusYear, idTree, idRegePlot, DBH_corr, scientificName)
+
+# Renommer la colonne DBH_corriger pour pouvoir fusionner
+Juveniles_esp_6 <- Juveniles_esp_6 %>%
+  dplyr::rename(DBH = DBH_corr)
+
+# Filtrage des DBH < 1
+Juveniles_esp_6 <- Juveniles_esp_6 %>%
+  filter(DBH > 1 &
+           scientificName %in% esp_6)
+
+# exportation
+ write.csv(Juveniles_esp_6, file = "Juveniles_esp_6.csv")
+```
+
+Je tiens à dire qu'en éliminant les DBH \< 1 nous perdons bien 1853 observations. Sur un total de 7 années pour 6 espèces.
 
 ## Adultes
 
@@ -145,27 +205,27 @@ P11 <- read.csv("~/cours_r/Stage_M2/ParacouP11AllYears.csv", comment.char="#")
 
 # Fusion des parcelles
 Guyafor <- rbind(P1,P6,P11)
+
 ```
 
-```{r Adulte}
-# Création d'une colonne scientificName
-Adultes <- Guyafor %>%
-  mutate(scientificName = paste(Genus, Species, sep = " "))
+Nous avons besoin d'une liste des 6 espèces relevés dans Regeneration Plots.
 
-# Création d'une colonne DBH
-Adultes <- Adultes %>%
-  mutate(DBH = Circ/pi)
+```{r Adulte}
+# Création d'une colonne scientificName,DBH
+Adultes <- Guyafor %>%
+  mutate(scientificName = paste(Genus, Species, sep = " "),
+         DBH = Circ/pi)
 
 # Application des filtres
 Adultes <- Adultes %>%
   filter(!is.na(Xutm) & 
     Plot %in% c(1, 6, 11) & 
     CodeAlive == 1 &
-    CensusYear %in% c(1992, 1993, 1995, 2003, 2005, 2008, 2013, 2016)) %>%
-  #géolocalisation de guyafor
+    CensusYear %in% c(1992, 1993, 1995, 2005, 2008, 2013, 2016) &
+      scientificName %in% esp_6) %>%
+# géolocalisation de guyafor
   st_as_sf(coords = c("Xutm", "Yutm"), 
            crs = st_crs(2972)) 
-
 # fusion 
 Adultes_P1_6_11 <- st_intersection(PlacettesP1_6_11_buffer5m, Adultes)
 
@@ -179,22 +239,59 @@ Adultes_P1_6_11 <- Adultes_P1_6_11 %>%
 ```{r Adultes & Juveniles}
 # Sélection des colonnes d'intérêts
 Adultes_fin <- Adultes_P1_6_11 %>%
-select(CensusYear, Plot, idRegePlot, idTree, scientificName, DBH)
-
-Juveniles_fin <- juveniles_P1_6_11 %>%
-  select(CensusYear, Plot, idRegePlot, idTree, scientificName, DBH)
+select(Plot, CensusYear, idRegePlot, idTree, scientificName, DBH)
 
 # Combinaison
-Guyafor_fin <- rbind(Juveniles_fin, Adultes_fin)
+Guyafor_fin <- rbind(Juveniles_esp_6, Adultes_fin)
+
+write.csv(Guyafor_fin, file = "Guyafor_fin.csv")
 ```
 
-# Matrice
+Nous avons un dataset de 1635 observations.
+
+# Matrices
+Selon les modèles utilisées les matrices ne seront pas les mêmes. Dans cette section, se trouve la création de chacun de ces jeux de données. Pour rappel nous ne travaillons que sur les 6 espèces d'intérêts. Afin d'aisement pouvoir interpréter les sorties de modèles nous allons factoriser nos noms scientifiques en numéros.
+
+```{r scientificName_fac}
+# Associons un numéro unique à ces scientificNames
+Guyafor_AJ <- Guyafor_fin %>%
+  dplyr::mutate(scientificName = recode(scientificName,
+                                  "X1" = "Iryanthera sagotiana",
+                                  "X2" = "Qualea rosea",
+                                  "X3" = "Vouacapoua americana",
+                                  "X4" = "Pradosia cochlearia",
+                                  "X5" = "Jacaranda copaia",
+                                  "X6" = "Dicorynia guianensis"))
+unique(Guyafor_AJ$scientificName)
+```
+il y a un problème d'ncodage de cette partie à repréndre ultérieurement
+```{r}
+Guyafor_AJ <- Guyafor_fin %>%
+  mutate(scientificName = case_when(
+    scientificName == "X1" ~ "Iryanthera sagotiana",
+    scientificName == "X2" ~ "Qualea rosea",
+    scientificName == "X3" ~ "Vouacapoua americana",
+    scientificName == "X4" ~ "Pradosia cochlearia", 
+    scientificName == "X5" ~ "Jacaranda copaia",
+    scientificName == "X6" ~ "Dicorynia guianensis",
+    TRUE ~ scientificName
+  ))
+
+test <- data.frame(
+  scientificName = c("Iryanthera sagotiana", "Qualea rosea", "Vouacapoua americana","Pradosia cochlearia", "Jacaranda copaia", "Dicorynia guianensis")
+)
+
+test %>%
+  dplyr::mutate(scientificName = 
+```
 
 Pour la création de notre matrice, nous allons partir d'un data.frame qu'on passera sous un format long. On aura en colonne les espèces et en ligne soit une présence (1), soit une absence (0). Nous considérons la présence de notre espèce *S* dans le pool d'étude. Il représente pour chaque individu *S* leur présence 1 et 0 pour toutes les autres espèces (pseudo-absence).
 
+#AAAAAAAAAAAAAAAAAAAAAAAAAAAHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
+Rien ne va plus, il ne veut pas me recode, l'ordre des colonnes n'est pas le bon.
 ```{r guyafor_matrice}
 #Création de la matrice avec pivot_wider
-Guyafor_matrix <- Guyafor_fin %>%
+Guyafor_matrix <- Guyafor_AJ %>%
   group_by(CensusYear, Plot, idRegePlot, idTree, DBH, scientificName) %>% #pour que chaque ligne soit unique
   dplyr::summarise(presence = ifelse(n() > 0, 1, 0)) %>% # ajout d'un numéro 1 si présence et d'un 0 si pas, n() représente le comptage par ligne 
   pivot_wider(
@@ -206,27 +303,129 @@ Guyafor_matrix <- Guyafor_fin %>%
 Guyafor_matrix <- Guyafor_matrix %>%
   dplyr::mutate(id = row_number()) # nécessité d'un numéro d'observation
 
-#création de la matrice
+# Renommons les collones
+names(Guyafor_matrix)
+rename(Guyafor, c("CensusYear", "Plot", "idRegePlot", "idTree", "DBH", "X1", "X2","X6", "X3", "X4", "X5", "X6"))
 Guyafor_matrix <- Guyafor_matrix %>%
-  mutate(across(all_of(esp_6), as.integer)) # transformation en entier les colonnes spécifiées dans esp_6
+  rename("X1" = "Iryanthera sagotiana",
+                                  "X2" = "Qualea rosea",
+                                  "X3" = "Vouacapoua americana",
+                                  "X4" = "Pradosia cochlearia",
+                                  "X5" = "Jacaranda copaia",
+                                  "X6" = "Dicorynia guianensis")
+
+# transformation en entier les colonnes spécifiées dans esp_6
+Guyafor_matrix <- Guyafor_matrix %>%
+  mutate(across(all_of(as.character(1:6), as.integer)) 
 ```
 
-# Exportation
+### Exportation
 
-Maintenant que la matrice est crée, il ne nous reste plus qu'à exporter selon le types de données environnementale. Pour la sélection des dates CHM par rapport au lidar : if_esle(CensusYear,N,N+1).
+Maintenant que la matrice est crée, il ne nous reste plus qu'à exporter selon le types de donnée environnementale. Pour la sélection des dates CHM par rapport au lidar : if_esle(CensusYear,N,N+1).
 
 *BD = Base de donnée*
 
+Les années associées au LiDAR sont différentes de celle de la surface terrière.
+
 ```{r BD_esp}
+# Années LiDAR
+CensusYear_LiDAR <- c(2008,2013,2016)
 # Pour le CHM
 BD_esp_CHM <- Guyafor_matrix %>%
-    filter (CensusYear %in% c(2008,2013,2016))
+    filter (CensusYear %in% CensusYear_LiDAR)
 
-# Retrait année 2003 car anomalie
-BD_esp_G <- Guyafor_matrix %>%
-  filter(CensusYear != 2003)
-  
+# Pour la G
+BD_esp_G <- Guyafor_matrix
 # Création .csv
 #write.csv(BD_esp_G, file = "BD_esp_G.csv")
-#write.csv(BD_esp_CHM, file = "BD_esp_CHM.csv" )
+#write.csv(BD_esp_CHM, file = "BD_esp_CHM.csv")
 ```
+
+Pour la suite de ce script il nous suffira d'importer le jeu de donnée BD_esp_G. Pour rappel :
+
+1.  Iryanthera sagotiana
+
+2.  Qualea rosea
+
+3.  Vouacapoua americana
+
+4.  Pradosia cochlearia
+
+5.  Jacaranda copaia
+
+6.  Dicorynia guianensis
+
+```{r importation BD_esp, include = F}
+BD_esp <- read.csv("~/cours_r/Stage_M2/BD_esp_G.csv")
+
+
+BD_esp <- BD_esp %>%
+  select(-X)
+```
+
+Quelque soit les espèces sélectionnée nous sommes à 1620 observations parce que la création des colonnes a été faite depuis les 6 espèces il suffit pour chaque BD filtrer lorsque pour les deux les occurences sont vides.
+
+## BD_JQ
+
+En faisant tourner sur le premier modèle, nous cherchons à voir les proportions initiales (paramètre alpha, intersection). Pour vérifier que le modèle fait bien ce qu'on lui demande dans un premier temps nous le faisons tourner sur *Qualea rosea* et *Jacaranda coapia*. Ces espèces sont respectivement la plus abondante et la moins abondante.
+
+```{r BD_JQ}
+BD_JQ <- BD_esp %>%
+  select(id,CensusYear,Plot,idRegePlot,idTree,DBH, '5', '2')%>%
+  mutate(X = as.numeric(`5`) + as.numeric(`2`)) %>%
+  filter(X >= 1)%>%
+  select(-X)
+
+write.csv(BD_JQ, file = "BD_JQ.csv")
+```
+
+Il servira également à faire tourner sur le deuxième modèle, où nous cherchons à savoir s'il nous prédit bien s'il y a des espèces qui ont plus ou moins tendance à être dans la canopée que l'on traduirait par le fait d'avoir de gros diamètre. Nous avons comme espèce de canopée *Qualea rosea* et *Jacaranda coapia* présente qu'en sous bois dans notre jeu de donnée.
+
+## BD_JV
+
+En faisant tourner sur le deuxième modèle, nous cherchons à savoir l'affinité à la lumière. En d'autres termes, si lorsque l'on augmente la surface terrière, la présence de *Jacaranda copaia* diminue ? Et inversement pour *Vouacapoua americana* ?
+
+```{r BD_JV}
+# Version 1 testée sur la surface terrière (G)
+BD_JV_1 <- BD_esp %>%
+  select(id,CensusYear,Plot,idRegePlot,idTree,DBH, '5', '3')%>%
+  mutate(X = as.numeric(`5`) + as.numeric(`3`)) %>%
+  filter(X >= 1)%>%
+  select(-X)
+
+#exportation
+write.csv(BD_JV_1, file = "BD_JV_1.csv")
+
+# Version 2 testée sur le CHM
+BD_JV_2 <- BD_esp %>%
+  select(id,CensusYear,Plot,idRegePlot,idTree,DBH, '5', '3')%>%
+  filter (CensusYear %in% CensusYear_LiDAR)%>%
+  mutate(X = as.numeric(`5`) + as.numeric(`3`)) %>%
+  filter(X >= 1)%>%
+  select(-X)
+```
+
+## BD_VP
+
+En faisant tourner sur le troisième modèle, nous cherchons à savoir si le modèle s'adapte mieux à des tempéraments changeant. Nous avons pour cela deux espèces une qui change et l'autre pas. Nous avons *Pradosia cochlearia* qui est d'abord ombre puis lumière, et *Vouacapoua americana* qui est tolérant toute sa vie. Pour cela nous allons ajouter un paramètre X² (élevé au carrée ce qui nous donne une équation en forme de polynôme du 2nd degré).
+
+```{r BD_VP}
+# Version 1 testée sur la surface terrière (G)
+BD_VP_1 <- BD_esp %>%
+  select(id,CensusYear,Plot,idRegePlot,idTree,DBH, "3", "4") %>%
+  mutate(X = as.numeric(`4`) + as.numeric(`3`)) %>%
+  filter(X >= 1)%>%
+  select(-X)
+# exportation
+write.csv(BD_VP_1, file = "BD_VP_1.csv")
+
+# Version 2 testée sur le CHM
+BD_VP_2 <- BD_esp %>%
+  select(id,CensusYear,Plot,idRegePlot,idTree,DBH, "3", "4")%>%
+  filter (CensusYear %in% CensusYear_LiDAR)%>%
+  mutate(X = as.numeric(`4`) + as.numeric(`3`)) %>%
+  filter(X >= 1)%>%
+  select(-X)
+```
+
+Fin du script

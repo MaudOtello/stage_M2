@@ -1,0 +1,121 @@
+---
+title: "Generated quantities code plot"
+author: "Vincyane"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+#### Predictions with Stan
+
+```{r}
+# Outputs model extraction
+#create a table with the model's "generated quantities" (diversity prediction according to logging/fire/Cedrela,hydrosoil proportions), 
+Pred_DivTaxo <- as.data.frame(DivTaxo_ShannM5_interac_fire_sylv, pars = c("Pred_DivTaxo_Sylv", "Pred_DivTaxo_Fire", "Pred_DivTaxo_Ced", "Pred_DivTaxo_Soil", "Pred_DivTaxo_sylvXfire")) %>% 
+  reshape2::melt() %>% #100 predictions are in several col -> put them in only one
+  as.tbl() %>% 
+  group_by(variable) %>% #group by predictor
+  #Le modèle predictif a généré, pour chacune des valeurs des variables effet générées, une distribution de valeurs (4000) de la variable réponse correspondant à celle décrite par le modèle explicatif, lorsque la variable effet concernée agit.
+  
+  #compute mean and quantiles of these distributions:
+  summarise("mean" = mean(value), "Lower_bound_2.5" = quantile(value, 0.025), "Upper_bound_97.5" = quantile(value, 0.975)) %>% 
+  mutate(variable = as.character(as.factor(variable))) %>%
+  mutate(N_pred = as.character(extract_numeric(variable)))  # create a colomn with N_pred number (=100 by predictor)
+
+# Clean the table, to rename the variables
+Pred_DivTaxo$variable <- str_replace_all(Pred_DivTaxo$variable, "[[:punct:]]", " ")#remove punctuation ([]) chr
+Pred_DivTaxo$variable <- str_replace_all(Pred_DivTaxo$variable, "\\d", "") #remove digits
+Pred_DivTaxo$variable <- trimws(Pred_DivTaxo$variable,"r") #remove right spaces
+Pred_DivTaxo$variable <- str_replace_all(Pred_DivTaxo$variable, "\\s", "_") #replace space by _
+
+Pred_DivTaxo <- Pred_DivTaxo %>% 
+  rename(Div_pred = variable) %>% 
+  mutate(covar_pred = ifelse(Div_pred == "Pred_DivTaxo_Sylv", "Silv_pred", NA)) %>%  
+  mutate(covar_pred = ifelse(Div_pred == "Pred_DivTaxo_Fire", "Fire_pred", covar_pred)) %>%  
+  mutate(covar_pred = ifelse(Div_pred == "Pred_DivTaxo_Ced", "Ced_pred", covar_pred)) %>%  
+  mutate(covar_pred = ifelse(Div_pred == "Pred_DivTaxo_Soil", "Soil_pred", covar_pred)) %>%  
+  mutate(covar_pred = ifelse(Div_pred == "Pred_DivTaxo_sylvXfire", "silvXfire_pred", covar_pred))  
+
+
+# Simulated effect variables table:
+Covariants_pred <- data.frame(
+  # standardized simulated values of each effect variable:
+  Silv_pred = Silv_pred,
+  Fire_pred = Fire_pred, 
+  Ced_pred = Ced_pred, 
+  Soil_pred = Soil_pred,
+  # simulated values (no-standardized) of each effect variable:
+  Silv_pred1 = Silv_seq, #this name to be easily modifiable 
+  Fire_pred1 = Fire_seq,
+  Ced_pred1 = Ced_seq,
+  Soil_pred1 =  Soil_seq) %>% 
+  mutate(silvXfire_pred = Interac_pred) %>% #just to rename
+  mutate(silvXfire_pred1 = Interac_seq) %>%
+  rownames_to_column(var= "N_pred") # rows's numero became prediction's numero
+
+# Standardized simulated effect variables table:
+Standpred <- Covariants_pred %>% 
+  select(N_pred, Silv_pred, Fire_pred, Ced_pred, Soil_pred, silvXfire_pred) %>% # values of the "covar_pred" column
+  #columns:
+  reshape2:: melt(id.vars = 'N_pred', #(=100 for each variables)
+                  variable.name = "covar_pred", #column with all the effect variables
+                  value.name = "Stand_val") #their standardized values
+
+# No-standardized simulated effect variables table:
+Nostandpred <- Covariants_pred %>% 
+  select(N_pred, Silv_pred1, Fire_pred1, Ced_pred1, Soil_pred1, silvXfire_pred1) %>% # values of the "covar_pred" column
+  reshape2:: melt(id.vars = 'N_pred',
+                  variable.name = "covar_pred",
+                  value.name = "covar_val") %>% #their no-standardized values
+  mutate(covar_pred = recode(covar_pred, "'Silv_pred1' = 'Silv_pred'; 'Fire_pred1' = 'Fire_pred'; 'Ced_pred1' = 'Ced_pred'; 'Soil_pred1' = 'Soil_pred'; 'silvXfire_pred1' = 'silvXfire_pred'")) #rename to be homogeneous
+
+#Join standardized & no-standardized values:
+Covariants_pred <- Standpred %>% 
+  left_join(Nostandpred, by = c('N_pred', 'covar_pred'))
+
+#Join model's outputs table to simulated (stand & no-stand) values table:
+Pred_covariantsdata_Taxo <- Pred_DivTaxo %>% 
+  left_join(Covariants_pred, by = c("N_pred", "covar_pred"))
+
+```
+
+Prediction plots
+```{r}
+covariantsdata_plusinterac <-  covariantsdata %>% 
+  mutate(prop_silvXfire = prop_ba_removed * prop_fire) # fire & sylv multiplication no standardized
+# Wide-format to long-format -> facet_wrap/grid
+covariantsdataLongformat_plusinterac <- melt(covariantsdata_plusinterac)
+
+```
+
+```{r}
+
+Observed_values <- covariantsdataLongformat_plusinterac %>% # the real factor values
+  dcast(plot ~ variable) %>% 
+  melt(id.vars = c("plot",
+                   "DivTaxo_Shann", "DivPhylo_Shann", "DivFctnal_Shann"), # the real diversity values in columns
+       variable.name = "covar_pred",
+       value.name = "covar_val") %>% 
+  mutate(covar_pred = recode(covar_pred, "'prop_ba_removed' = 'Silv_pred'; 'prop_fire' = 'Fire_pred'; 'prop_ced' = 'Ced_pred'; 'prop_hydrosoil'= 'Soil_pred' ; 'prop_silvXfire' = 'silvXfire_pred'")) 
+
+Taxoscales <- scale_y_continuous(limits = c(0, 60)) #to define limits at the plot y axes 
+
+blank_data_taxo <- data.frame(group = c("Ced_pred", "Ced_pred", "Fire_pred", "Fire_pred", "Silv_pred", "Silv_pred", "silvXfire_pred", "silvXfire_pred", "Soil_pred", "Soil_pred"), x = c(0.1, 
+                                                                                                                                                                                         0.4, 0.1, 0.4, 0.1, 0.4, 0.1, 0.4, 0.1, 0.4), y = c(10, 
+                                                                                                                                                                                                                                             60, 10, 60, 10, 60, 10, 60, 10, 60)) # the smallest common range. It will expand according to the data
+
+# png(file = "C:/Users/Utilisateur/Desktop/Stage_M2_CI/Figures/Prediction_plots_Taxo.png", width=738, height=512)
+
+ggplot(Pred_covariantsdata_Taxo) +
+  aes(x = covar_val, y = mean) + #display the average predicted values for each predictor value
+  geom_ribbon(aes(ymin = Lower_bound_2.5, ymax = Upper_bound_97.5), alpha = 0.2) + # bande de quantile
+  geom_point(size = 0.4, colour = "#FF6600") + #points = mean -> an orange line
+  geom_point(data = Observed_values, aes(x =covar_val, y = DivTaxo_Shann ), colour = '#3e4a89', size = 0.4) + #points = observed values
+  labs(x = "Predictors proportions", y = "Predicted Hill's number") + #titles
+  geom_blank(data = blank_data_taxo, aes(x = x, y = y)) +
+  theme_minimal() +
+  facet_wrap(vars(covar_pred), scales = "free") #display the effect of each predictor
+
+# dev.off()
+
+
+```

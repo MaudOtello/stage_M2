@@ -1,0 +1,148 @@
+---
+title: "brouillon"
+author: "Maud"
+date: "2024-05-29"
+output: html_document
+---
+__________Résumé de ce que je veux faire____________________
+Nous allons réaliser un tampon autour de chaque observation d'une longueur approximative totalement subjective de 10m de rayon. Pour tout arbre se trouvant sur la limite des 10m nous les incluons car nous estimons que sont houppier interfères dans l'environnement.
+
+Je dispose d'un jeu de donné spatialisé comprenant le nom d'espèce, leur localisation (geometry), leur DBH, un tampon autour de la zone (buffer). L'ensemble des donnés est stocké comme point sauf buffer en polygone.
+A partir de ce jeu de donné, j'aimerai à chaque individus (point) qu'on lui attribut une surface terrière dans une zone de 10m autour de ce point (modéliser par le buffer). Pour calculter la surface terrière, il faut sélectionnner dans ce buffer les individus DBH > 10, à chaque individus appliquer le calcule suivant : pi * (DBH * 0.01)^2 / 4). Une fois ce calcule réaliser la somme de l'ensemble des résultats représente la surface terrière.
+
+______________________________________________________________
+
+Nous souhaitons estimée la surface terrière que l'on va calculer à l'aide d'un buffer. Pour cela il me faut apprendre comment fonctionne un buffer. A l'aide du package sf il m'est possible d'extraire un buffer pour chaque points.
+Nous allons créer un nouveau df spatialisé.
+
+
+Je veux que : 
+1. Pour chaque observation/ ligne/localisation -> rowwise
+2. dans un rayon de 10m (inclus). -> filter + contains + st_buffer
+3. qu'il me face sélectionne les DBH >10 -> filter (DBH > 10)
+4. pi * (dbh*0.01)^2/4) [conversion des mesures de dbh en m] -> mutate
+5. le résultat soit contenue dans une colonne G -> summarize
+
+A ce jeu de donnée nous allons ajouter un tampon (buffer) 
+```{r ajout tampon}
+# Intégration au format polygone du buffer
+P1_spat2 <- P1_spat2 %>%
+  filter(st_geometry_type(geometry) == "POINT") %>%
+  mutate(buffer = st_buffer(geometry, dist = 10)) 
+
+# test de la sélection tampon
+P1_spat2 %>%
+  names()
+ 
+  st_contains(buffer, geometry)
+
+# Calcule de la surface terrière
+P1_spat2 %>%
+  rowwise() %>% #lecture par ligne
+  st_intersection(buffer,geometry) %>% # sélection des individus dans zone tampon
+  mutate(result = pi * (DBH * 0.01)^2 / 4) %>%
+  summarise(G = sum(result))
+  
+#reste de la formule à ajouter  
+  filter(st_contains(geometry, buffer) & DBH > 10) %>%
+  
+```
+_____________________TENTATIVE 2______________________________
+
+Pour répondre aux attentes, nous allons crée une fonction de selection qui nous permet de calculer par observation la surface terrière.
+```{r function G}
+calcul_G <- function (individu, tous_points){
+  buffer <- st_buffer(individu$geometry, dist = 10) # calcul du buffer
+  
+  in_buffer <- tous_points %>% # dans le buffer
+    st_intersection(buffer, geometry) %>% # sélectionne les indv dans buffer
+    filter(DBH > 10) %>%
+    mutate(result = pi * (DBH * 0.01)^2 / 4) %>%
+    summarise(G = sum(result, na.rm = TRUE))
+  
+  return(in_buffer$G)
+}
+# application à toutes les lignes
+esperonsquecamarche <- NA
+  
+#Création d'une boucle pour calculer G 
+for (i in 1:nrow(P1_spat2)) {
+  P1_spat2$G[i] <- calcul_G(P1_spat2[i,],P1_spat2)
+ }
+```
+
+```{r test simple}
+# Pour 1 indv
+une_ligne <- P1_spat2[1,] 
+
+calculer_surface_terriere <- function(individu, tous_points) {
+  buffer <- st_buffer(individu$geometry, dist = 10)
+  
+  # Afficher le buffer pour vérification
+  print(buffer)
+  
+  points_dans_buffer <- st_intersection(tous_points, buffer)
+  
+  # Afficher les points dans le buffer pour vérification
+  print(points_dans_buffer)
+  
+  points_dans_buffer <- points_dans_buffer %>% filter(DBH > 10)
+  
+  # Afficher les points filtrés pour vérification
+  print(points_dans_buffer)
+  
+  surface_terriere_totale <- sum(pi * (points_dans_buffer$DBH * 0.01)^2 / 4, na.rm = TRUE)
+  
+  # Afficher la surface terrière totale pour vérification
+  print(surface_terriere_totale)
+  
+  return(surface_terriere_totale)
+}
+
+# Appliquer la fonction à la ligne sélectionnée
+surface_terriere <- calculer_surface_terriere(une_ligne, P1_spat2)
+
+# Afficher la surface terrière calculée
+print(surface_terriere)
+```
+
+```{r}
+# Supposons que votre dataframe s'appelle P1_spat2 et contient les colonnes: species, geometry, DBH
+# Et que P1_spat2 est un objet sf avec une colonne geometry
+
+# Fonction pour calculer la surface terrière autour d'un point
+calculer_surface_terriere <- function(individu, tous_points) {
+  buffer <- st_buffer(individu$geometry, dist = 10)
+  buffer <- st_set_crs(buffer, 2972)
+  points_dans_buffer <- tous_points %>%
+    st_intersection(buffer) %>%
+    filter(DBH > 10) %>%
+    mutate(surface_terriere = pi * (DBH * 0.01)^2 / 4) %>%
+    summarise(surface_terriere_totale = sum(surface_terriere, na.rm = TRUE))
+  
+  return(points_dans_buffer$surface_terriere_totale)
+}
+
+# Appliquer la fonction à chaque observation
+P1_spat2$surface_terriere_totale <- apply(P1_spat2, 1, function(individu) {
+  calculer_surface_terriere(individu, P1_spat2)
+})
+
+# Afficher les résultats
+print(P1_spat2)
+
+print(st_crs(P1_spat2))
+print(st_crs(buffer))
+```
+
+```{r test simple}
+G1 <- calcul_G(P1_spat2[1, ], P1_spat2)
+```
+
+___________________________TENTATIVE 3________________________
+
+Alors nous cherchons à calculer la surface terrière pour un point. La surface terrière correspond à la somme de l'ensemble des surface d'un arbre à 1 m 30 de hauteur.
+Pour cela nous allons ajouter une colonne surface Terrière (g) car c'est une petite partie de la surface Terrière. Et G c'est la vraie -> terme confu trouver une meilleure terminologie pour le petit s_t (surface terrière).
+
+Bon maintenant nous allons le mettre en application.
+

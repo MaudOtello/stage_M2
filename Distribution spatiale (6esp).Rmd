@@ -4,5 +4,83 @@ author: "Maud"
 date: "2024-04-25"
 output: word_document
 ---
-Ce document fait suite à **Distribution diamétrique (INRAE)** dans lequel nous avons pu identifier 6 espèces avec des structures diamétriques remarquables. 
-L'objectif de ce script est de réaliser une carte des distributions diamétriques de ces espèces d'intérêt.
+Ce document fait suite à **Distribution diamétrique (INRAE)** dans lequel nous avons pu identifier 6 espèces avec des structures diamétriques remarquables. Pour rappel nous utilisons les données de ALT (9ha sur P16).
+L'objectif de ce script est de réaliser une carte des distributions diamétriques de : 
+
+1.	_Iryanthera sagotiana_ (ombre puis lumière)
+2.	_Pradosia cochlearia_ (ombre puis lumière)
+3.	_Dicorynia guianensis_ (tolérante à l'ombre (moins que Wacapou))
+4.	_Qualea rosea_ (tolérante à l'ombre)
+5.	_Vouacapoua americana_ (tolérante à l'ombre)
+6.	_Jacaranda copaia_ (peu tolérante à l'ombre)
+
+#Mise en place
+```{r environnement de travail, include= F}
+setwd("~/cours_r/Stage_M2")
+```
+
+```{r packages, message = FALSE}
+library(tidyverse) #pour le langage et toutes les fonctions associées (ggplot2, dplyr...)
+library(sf)        #pour la manipulation des couches shapefiles
+library(ggspatial) #scale bars and north arrows
+```
+
+```{r importation des données, include = F}
+# ALT
+paracou_ALT <- read.csv("~/cours_r/Stage_M2/ALT_Paracou9ha_20240430.csv")
+
+## renomme le nom de colonne pour s'ajuster aux autres jeu de données
+paracou_ALT <- paracou_ALT %>% 
+  rename(scientificName = ScientificName)
+
+## on enlève les "_" de la colonnes scientificName
+paracou_ALT <- paracou_ALT %>%
+  mutate(scientificName = gsub("_", " ", scientificName))
+
+#Sélection des espèces
+esp_6 <- c("Dicorynia guianensis", "Pradosia cochlearia", "Iryanthera sagotiana", "Qualea rosea", "Vouacapoua americana", "Jacaranda copaia")
+
+paracou_ALT <- paracou_ALT %>%
+  filter (scientificName %in% esp_6)
+```
+
+# Création des cartes
+Nous allons spatialisé nos observations (rendre nos données en shapefile).
+
+```{r spatialisation}
+#rendre tableau  spatiale
+paracou_spat <- paracou_ALT %>%
+  filter (!is.na(Xutm)) %>%
+  st_as_sf(coords = c("Xutm", "Yutm"), crs = st_crs(2972)) 
+#crs = st_crs(2972) sert à préciser le SCR pour mon shp.
+#st_crs(2972) = RFGR95 donc j'ai le droit de le changer si le crs de départ est WGS 84 / UTM zone 22N 
+```
+Maintenant nous pouvons créer la carte des distributions.
+
+```{r}
+# objet dans mon environnement
+cartes_esp6 <- list()
+
+for(k in 1:length(esp_6)) {
+  cartes <- paracou_spat %>%
+    filter(scientificName == esp_6[[k]]) %>% #donne la position dans le vecteur
+    select(scientificName, DBH) %>%
+   ggplot() +
+    geom_sf(aes(color = DBH)) +
+    scale_color_gradient(low = "blue", high = "red") +
+    theme_light() +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+    labs(title = paste("Distribution spatiale de", esp_6[[k]], "en fonction du DBH"), color = "DBH", fill = "Topographie") +
+    annotation_scale(location = "bl", width_hint = 0.4) +         # échelle
+    annotation_north_arrow(location = "tr", which_north = "true", # flèche du nord
+        pad_x = unit(0.0, "in"), pad_y = unit(0.1, "in"),
+        style = north_arrow_fancy_orienteering)
+ # Ajout à la liste
+  cartes_esp6 [[k]] <- cartes
+}
+
+print(cartes_esp6)
+```
+
+
+**Fin du script**

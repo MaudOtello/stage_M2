@@ -148,7 +148,20 @@ var_G %>%
   theme_linedraw()
 ```
 
-Le nombre d'individus par placette
+Nous souhaiterons réaliser un graphe comprenant la surface terrière en fonction des densité.
+
+```{r G_densité}
+G_ggplot <- BD_env_G %>%
+  ggplot(aes(x =  G))+
+  geom_histogram(breaks = seq(0.5,4, by = 0.1 ),fill = "turquoise3") +
+    theme_light() +
+    labs(x = "Surface terrière", y = "Densité") 
+
+# Sauvegarde
+ggsave(filename = "G_ggplot.pdf",
+       plot = G_ggplot,
+  width = 11, height = 8)
+```
 
 # CHM
 

@@ -152,13 +152,13 @@ paracou_G %>%
   count(scientificName, family, sort = TRUE) %>%
   filter(!is.na(scientificName)) %>%
   group_by(scientificName) %>%
-  head(20) %>%
+  head(50) %>%
   ggplot(aes(x = reorder(scientificName, -n), y = n, fill = family))+ #organiser dans l'ordre décroissant
   geom_bar(stat = "identity", color = "black") +
   scale_fill_brewer(palette = "RdYlGn") +
   theme_light() +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + #avoir la légende des x à la verticale
-  labs(title = "Occurence des 20 espèces les plus fréquentes", x = "Famille", y = "Occurence")
+  labs(title = "Occurence des 50 espèces les plus fréquentes", x = "Famille", y = "Occurence")
 
 # Pour avoir l'occurence exacte et leur famille associée
 paracou_G %>%
@@ -267,6 +267,15 @@ paracou_ALT %>%
          !is.na(DBH) &
          !is.na(Xutm) &
          !is.na(Yutm))
+```
+Nous voulons savoir le nombre d'individus par espèce et par année.
+```{r}
+Paracou_esp6 <- paracou_ALT %>%
+filter(scientificName %in% esp_6)
+
+Paracou_esp6 %>%
+  group_by(scientificName)%>%
+  count()
 ```
 
 Au total, grâce à cette épuration nous comptons 2 567 individus de plus.
@@ -730,7 +739,12 @@ Paracou_Juveniles %>%
   filter(Project == "ParacouRegeneration") %>%
   distinct(Plot)
 
+# Nombre de cassé
 
+Paracou_Juveniles %>%
+  filter (CensusYear == 2016 &
+            DBH > 1 & 
+            Plot == 1)
 #Dygepop
 ##nombre d'espèces
 Paracou_Juveniles %>%
@@ -1019,6 +1033,35 @@ P11 %>%
   theme_light() +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + #avoir la légende des x à la verticale
   labs(title = "Occurence des 20 espèces les moins fréquentes sur la P11", x = "Espèces", y = "Occurence")
+```
+
+
+### Nombre d'arbre (A REFAIRE)
+Il manque la création de la liste de 6 espèces dans Paracou_ALT
+
+
+```{r ALT}
+# ALT
+paracou_ALT <- read.csv("~/cours_r/Stage_M2/ALT_Paracou9ha_20240430.csv")
+
+## renomme le nom de colonne pour s'ajuster aux autres jeu de données
+paracou_ALT <- paracou_ALT %>% 
+  rename(scientificName = ScientificName)
+
+## on enlève les "_" de la colonnes scientificName
+paracou_ALT <- paracou_ALT %>%
+  mutate(scientificName = gsub("_", " ", scientificName))
+
+#selection des espèces d'intérêts
+##Création de la liste des espèces d'intérêt
+esp_6 <- c("Dicorynia guianensis", "Pradosia cochlearia", "Iryanthera sagotiana", "Qualea rosea", "Vouacapoua americana", "Jacaranda copaia")
+paracou_ALT <- paracou_ALT %>%
+  filter (scientificName %in% esp_6)
+```
+Je voudrais savoir le nombre d'espèce pour l'ensemble des autres parcelles dans la méthode 2.
+Il faut que j'ai dans les deux cas
+```{r méthode 2}
+
 ```
 
 # VERIF TEST
