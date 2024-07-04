@@ -7,6 +7,10 @@ output: word_document
 
 Ce script à pour objectif de mettre en place notre modèle bayésien accompagné de ses résultats.
 
+```{r environnement de travail}
+stwd ()
+```
+
 Notre modèle bayésien cherche à savoir :
 
 $$presence_{espece_i|pool} ~ DirichletMultinomial[softmax(\alpha_i + \beta_i * X_i + \gamma_i * X_i + \delta_i * Z_i + \epsilon_i * Z_i)] $$
@@ -17,7 +21,6 @@ library(rstan)     #pour faire tourner les fichiers R
 library(bayesplot) #pour les graphes posterieurs
 library(gridExtra) #pour faire apparaître 2 graphes côte à côte
 library(dplyr)     #car masquer juste avant
-library(viridis)  # pour les couleurs adaptées aux daltoniens
 ```
 
 ```{r importation, include = FALSE}
@@ -410,3 +413,4 @@ ggsave(filename = "complet_ggplot2.pdf",
        plot = complet_ggplot2,
   width = 11, height = 8)
 ```
+

@@ -1,0 +1,183 @@
+---
+title: "heatmap"
+author: "Maud OTELLO"
+date: "2024-07-03"
+output: word_document
+---
+
+# Heatmap
+
+```{r packages}
+library(tidyverse) #pour langage tidyvers, ggplot2, purrr
+library(rstan)     #pour faire tourner les fichiers R
+library(bayesplot) #pour les graphes posterieurs
+library(gridExtra) #pour faire apparaître 2 graphes côte à côte
+library(dplyr)     #car masquer juste avant
+```
+
+```{r environnement de travail}
+setwd("C:/Users/Maud Otello/Documents/cours_r/Stage_M2/script/modèle bayésien")
+```
+
+Sortir Y_pred qui prend en compte G et DBH pour faire à la suite un heatmap.
+
+```{r importation}
+# 10 itérations
+read_rds("~/cours_r/Stage_M2/Bayesien_save/fit_heatmap.rds")
+```
+
+```{r fit_heatmap}
+# Nombre d'observations
+N = BD_esp_G %>%
+  nrow()
+
+# Nombre d'espèces
+S = 6
+
+# Contenue de la matrice présence absence
+Y = BD_esp_G %>%
+  select(-all_of(c("id", "DBH","Plot","CensusYear","idRegePlot","idTree")))
+
+X = BD_env_G %>%
+  dplyr::pull(DBH)
+
+# Variables explicatives
+Z = BD_env_G %>%
+  dplyr::pull(G)
+
+# Prédiction de surface terrière pour les graphes
+Z_pred = seq(from = min(Z), 
+             to = max(Z),
+             by = 0.1)
+# Longueur de la prédiction G
+K_pred = length(Z_pred)
+
+# Prédiction du DBH
+X_pred = seq(from = 1,
+             to = max(X),
+             by = 1) 
+
+# Longueur de la prédiciton DBH
+N_pred = length(X_pred)
+
+# Intercept
+alpha_s = alpha_esp
+
+# Compilation du modèle
+fit_heatmap = stan("C:/Users/Maud Otello/Documents/cours_r/Stage_M2/script/modèle bayésien/m_heatmap.stan",
+               data = list(N = N, 
+                           S = S,
+                           Y = Y,
+                           X = X,
+                           Z = Z,
+                           alpha_s = alpha_s,
+                           N_pred = N_pred,
+                           X_pred = X_pred,
+                           K_pred = K_pred,
+                           Z_pred = Z_pred),
+               iter = 100, chains = 4)
+
+# Enregistrement de la compilation
+write_rds(fit_heatmap, file = "fit_heatmap.rds")
+```
+
+## Analyses des paramètres du modèles
+
+```{r fit_heatmap}
+parameters <- c("alpha[1]", "beta[1]", "gamma[1]", "delta[1]", "epsilon[1]",
+                  "alpha[2]", "beta[2]", "gamma[2]", "delta[2]", "epsilon[2]",
+                  "alpha[3]", "beta[3]", "gamma[3]", "delta[3]", "epsilon[3]",
+                  "alpha[4]", "beta[4]", "gamma[4]", "delta[4]", "epsilon[4]",
+                  "alpha[5]", "beta[5]", "gamma[5]", "delta[5]", "epsilon[5]",
+                 "alpha[6]", "beta[6]", "gamma[6]", "delta[6]", "epsilon[6]")
+
+# Convergence du modèle
+heatmap_traceplot <- traceplot(fit_heatmap, pars = parameters)
+# Paramètres
+heatmap_summary <- summary(fit_heatmap, 
+         pars = parameters)
+
+# Distribution à posteriori
+heatmap_mcmc <- mcmc_trace(fit_heatmap, 
+        pars = parameters)
+
+# Inf
+heatmap_mcmc_intervals <- mcmc_intervals(fit_heatmap, pars = parameters)
+```
+
+Le modèle semble converger avec une Rhat max de 1.08.
+
+Nous pouvons donc essayer de mettre en place un graphique
+
+#  Graphique
+
+Nous aimerions faire un graphe 3D permettant de regarder l'impact de la surface terrière en prenant en compte le DBH. Comme le titre l'indique nous allons utiliser un heatmap. Dans un premier temps l'extraction des données du modèle prédit nous donne les dimensions suivante : *Y_pred [iterations, N_pred, K_pred, S]*
+
+\
+Pour pouvoir construire notre data.frame, nous allons tout d'abord créer les limites de définition de nos variables.
+
+```{r dim_vecteur}
+dbh <- seq(min(X_pred), max(X_pred), length.out = N_pred)
+g <- seq(min(Z_pred), max(Z_pred), length.out = K_pred)
+```
+
+Maintenant, nous allons calculer la moyenne pour permettre de fusionner l'ensemble des distributions des chaînes à l'aide de la fonction apply. *c(2,3,4)* précise qu'il faut calculer la moyenne à chaque dimensions cité cad X_pred, Z_pred et P.
+
+```{r moyenne}
+# Récupération des generated quantities
+Y_pred <- extract(fit_heatmap)$Y_pred
+# Dimension [iterations, N_pred, K_pred, S]
+dim(Y_pred)
+# 200  14  30   6
+# Moyenne des proba sur toutes les itérations
+Y_pred_mean <- apply(Y_pred, c(2,3,4), mean)
+```
+
+Alors là on a un tableau 4D que je ne serais pas décrire. Mais en tout cas, après avoir appliquer le format long on aura un data.frame avec une ligne par combinaison de DBH, surface terrière et espèce, et une colonne pour les probabilités moyennes.
+
+```{r format_long}
+df_long <- expand.grid(DBH = dbh, G = g, Species = esp_6) %>%
+  mutate(P = as.vector(Y_pred_mean))
+```
+
+Maintenant que nous avons le data.frame il nous reste à faire le plot.
+
+```{r plot}
+# Conversion en m²/ha
+conversion_factor <- 10000 / (pi * 15^2)
+
+# Création du ggplot
+heatmap_ggplot <- df_long %>%
+ggplot(aes(x = DBH, y = G*conversion_factor, fill = P)) +
+  geom_tile() + #heatmap
+  scale_fill_viridis_c() + # couleur daltonien
+  facet_wrap(~Species) +
+  theme_minimal() +
+  labs(x = "Diamètre (en cm)", y = "Surface terrière (en m²/ha)", fill = "Probabilité")+
+  xlim(1,70)
+
+# Sauvegarde
+ggsave(filename = "heatmap.pdf",
+       plot = heatmap_ggplot,
+  width = 11, height = 8)
+```
+
+Je veux faire un test avec l'écart type pour savoir si les zones foncées correspondent bien aux zones avec le moins de données. Mais la manière de le calculer me semble fausse à revoir selon conseil de Melaine et Géraldine.
+
+```{r ecart_type}
+# Moyenne des proba sur toutes les itérations
+Y_pred_sd <- apply(Y_pred, c(2,3,4), sd)
+
+# Format long
+df_long_sd <- expand.grid(DBH = dbh, G = g, Species = esp_6) %>%
+  mutate(P = as.vector(Y_pred_sd))
+
+# Création du ggplot
+df_long_sd %>%
+ggplot(aes(x = DBH, y = G*conversion_factor, fill = P)) +
+  geom_tile() + #heatmap
+  scale_fill_gradient(low = "white", high = "black")+ 
+  facet_wrap(~Species) +
+  theme_minimal() +
+  labs(x = "Diamètre (en cm)", y = "Surface terrière (en m²/ha)", fill = "Présence", title = "Données", subtitle = "Les zones plus sombres indiquent une plus grande variabilité dans les prédictions")
+```
