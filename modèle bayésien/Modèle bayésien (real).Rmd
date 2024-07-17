@@ -34,7 +34,7 @@ fit_alpha <- read_rds("~/cours_r/Stage_M2/Bayesien_save/fit_alpha.rds")
 
 # Abondance par espèce
 
-Ce premier modèle est contenue dans fit_alpha. Il va nous servir par la suite de prior informatif afin de permettre d'accélérer le temps de prédiction du modèle.
+Ce premier modèle est contenue dans fit_alpha tournée dans le script simulation. Il va nous servir par la suite de prior informatif afin de permettre d'accélérer le temps de prédiction du modèle.
 
 ```{r alpha_esp}
 alpha_esp <- alpha_esp <- apply(extract(fit_alpha)$theta , 2, mean)
@@ -270,7 +270,7 @@ esp_DBH <- data.frame()
 
 # Boucle for pour parcourir les espèces
 for (i in 1:6) {
-  # Calculer les statistiques pour chaque espèce
+  # Résumé des distributions pour chaque espèce
   Y_mean <- apply(Y_pred$Y_pred_x[,,i], 2, mean)
   Y_lower <- apply(Y_pred$Y_pred_x[,,i], 2, quantile, 0.025)
   Y_upper <- apply(Y_pred$Y_pred_x[,,i], 2, quantile, 0.975)
