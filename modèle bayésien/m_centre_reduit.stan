@@ -69,7 +69,7 @@ model {
 
 generated quantities {
   // Prédiction pour le DBH
-  matrix [N_pred, S] Y_pred_x ;
+  matrix [N_pred, S] Y_pred_x ; // format de la sortie
   for (n in 1:N_pred){
     Y_pred_x[n]= to_row_vector(softmax(alpha + beta*X_pred_cr[n] + gamma*(X_pred_cr[n])^2 )); // prédiction de Y quand X varie (DBH)   
     }
