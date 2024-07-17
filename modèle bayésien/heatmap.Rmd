@@ -23,7 +23,7 @@ Sortir Y_pred qui prend en compte G et DBH pour faire à la suite un heatmap.
 
 ```{r importation}
 # 10 itérations
-read_rds("~/cours_r/Stage_M2/Bayesien_save/fit_heatmap.rds")
+fit_heatmap <- read_rds("~/cours_r/Stage_M2/Bayesien_save/fit_heatmap.rds")
 ```
 
 ```{r fit_heatmap}
@@ -109,7 +109,7 @@ Le modèle semble converger avec une Rhat max de 1.08.
 
 Nous pouvons donc essayer de mettre en place un graphique
 
-#  Graphique
+# Graphique
 
 Nous aimerions faire un graphe 3D permettant de regarder l'impact de la surface terrière en prenant en compte le DBH. Comme le titre l'indique nous allons utiliser un heatmap. Dans un premier temps l'extraction des données du modèle prédit nous donne les dimensions suivante : *Y_pred [iterations, N_pred, K_pred, S]*
 
