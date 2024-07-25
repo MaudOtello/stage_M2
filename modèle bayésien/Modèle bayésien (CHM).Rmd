@@ -1,0 +1,702 @@
+---
+title: "Modèle bayésien (CHM)"
+author: "Maud OTELLO"
+date: "2024-07-16"
+output: word_document
+---
+
+Ce script a pour objectif de faire tourner des modèles bayésien de la probabilité d'appartenir à une espèce sachant la hauteur de canopée. Nous considérons les hauteurs hautes de canopée comme preuve qu'il y ait peu de lumière et les lumière basses comme beaucoup de lumière. Cette analyses est le complémentaire de la surface terrière.
+
+```{r packages}
+library(tidyverse) #pour langage tidyverse, ggplot2, purrr
+library(rstan)     #pour faire tourner les fichiers R
+library(bayesplot) #pour les graphes posterieurs
+library(gridExtra) #pour faire apparaître 2 graphes côte à côte
+library(dplyr)     #car masqué juste avant
+```
+
+```{r importation}
+BD_CHM <- read.csv("~/cours_r/Stage_M2/BD_CHM.csv", row.names=1) # P/A + CHM avec correspondance des années
+```
+
+L'enregistrement à changer l'ordre des colonnes nous allons donc réaranger tout cela
+
+```{r ordre_col}
+BD_CHM <- BD_CHM %>%
+    dplyr::select(id,idRegePlot,idTree,CensusYear,Plot,DBH, CHM, G, nombre_tiges, X1,X2,X3,X4,X5,X6)
+
+```
+
+Nom des colonnes :
+
+-   *"Iryanthera sagotiana" = X1,*
+
+-   *"Qualea rosea" = X2,*
+
+-   *"Vouacapoua americana" = X3,*
+
+-   *"Pradosia cochlearia" = X4,*
+
+-   *"Jacaranda copaia" = X5,*
+
+-   *"Dicorynia guianensis" = X6*
+
+# Abondance
+
+Nous allons commencer par estimer les abondances initiale pour pouvoir par la suite le réutiliser comme un prior.
+
+```{r alpha}
+# Nombre d'observations
+N = BD_CHM %>%
+  nrow()
+
+# Nombre d'espèces
+S = 6
+
+# Comptenue de la matrice présence absence
+y = BD_CHM %>%
+  select(-all_of(c("id", "DBH","Plot","CensusYear","idRegePlot","idTree", "CHM")))
+
+# Compilation du modèle
+fit_alpha_CHM = stan("m_multinomial.stan", data = list(N = N, y = y, S = S), iter = 1000, chains = 4)
+
+# Convergence du modèle
+traceplot(fit_alpha_CHM)
+summary(fit_alpha_CHM, pars = "theta")
+
+# Distribution à posteriori
+mcmc_trace(fit_alpha_CHM)
+
+# Sauvegarde
+saveRDS(fit_alpha_CHM, file = "fit_alpha_CHM.rds")
+
+# Extration theta
+# récupérer les generate_quantities + Calcule de la moyenne
+alpha_esp_CHM <- apply(extract(fit_alpha_CHM)$theta , 2, mean)
+
+print(alpha_esp_CHM)
+```
+
+Très bien les abondances semblent coincidé avec ce dont on s'attendait.
+
+# Modèle complet
+
+**J'ai la flemme de faire les testes et donc on va mettre tout en applications. Si jamais Melaine pose des questions on va être dans la mouise car trop pressée.**
+
+On cherche à savoir **Quelle est la probabilité d'appartenir à une espèce sachant le DBH et le CHM ?** pour cela nous allons faire dans une première partie les courbes de distribution et dans une seconde partie les heatmaps.
+
+Observons comment se répartie notre variable environnementale.
+
+```{r description_CHM}
+# Sommaire du CHM
+summary(BD_CHM$CHM)
+
+# Boxplot par année de recensement
+BD_CHM %>%
+  ggplot(aes(x = factor(CensusYear), y = CHM, fill = factor(CensusYear))) +
+  geom_boxplot(outlier.shape = NA, alpha = 0.7) +
+  geom_jitter(width = 0.2, alpha = 0.5, color = "black") +
+  theme_linedraw() +
+  labs(
+    x = "Année de recensement",
+    y = "Hauteur de canopée (en m)",
+    title = "Distribution de la hauteur de canopée par année de recensement"
+  ) +
+  theme(
+    legend.position = "none",  # Supprime la légende
+    plot.title = element_text(hjust = 0.5),  # Centre le titre
+    axis.text.x = element_text(angle = 45, hjust = 1)  # Rotation des étiquettes de l'axe x
+  ) +
+  scale_fill_brewer(palette = "Set2") +  # Utilise une palette de couleurs prédéfinie
+  scale_x_discrete(name = "Année de recensement")  # Assure que l'axe x est bien nommé
+
+# Histogramme
+## Basique
+BD_CHM %>%
+  select(CHM)%>%
+  ggplot(aes(x = CHM))+
+   geom_histogram(breaks = seq(15,40, by = 1 ),fill = "turquoise3") +
+    theme_light() +
+    labs(x = "CHM", y = "Effectif") 
+
+## Stylé
+BD_CHM %>%
+  ggplot(aes(x = CHM)) +
+  geom_histogram(breaks = seq(15, 40, by = 1),
+                 fill = "turquoise3",
+                 color = "white",
+                 alpha = 0.8) +
+  geom_density(aes(y = ..count.. * 1), 
+               color = "darkblue", 
+               size = 1) +
+  theme_minimal() +
+  labs(
+    x = "Hauteur de canopée (m)",
+    y = "Effectif",
+    title = "Distribution de la hauteur de canopée",
+    subtitle = "Histogramme avec courbe de densité"
+  ) +
+  scale_x_continuous(breaks = seq(15, 40, by = 5)) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
+    plot.subtitle = element_text(hjust = 0.5, face = "italic", size = 12),
+    axis.title = element_text(face = "bold"),
+    panel.grid.major = element_line(color = "gray80"),
+    panel.grid.minor = element_line(color = "gray90")
+  ) +
+  annotate("text", x = 38, y = max(ggplot_build(last_plot())$data[[1]]$count), 
+           label = paste("n =", nrow(BD_CHM)), 
+           hjust = 1, vjust = 1, fontface = "italic", color = "gray30")
+```
+
+```{r parameters}
+parameters <- c("alpha[1]", "beta[1]", "gamma[1]", "delta[1]", "epsilon[1]",
+                  "alpha[2]", "beta[2]", "gamma[2]", "delta[2]", "epsilon[2]",
+                  "alpha[3]", "beta[3]", "gamma[3]", "delta[3]", "epsilon[3]",
+                  "alpha[4]", "beta[4]", "gamma[4]", "delta[4]", "epsilon[4]",
+                  "alpha[5]", "beta[5]", "gamma[5]", "delta[5]", "epsilon[5]",
+                 "alpha[6]", "beta[6]", "gamma[6]", "delta[6]", "epsilon[6]")
+```
+
+## Courbes
+
+```{r courbes}
+# Nombre d'observations
+N = BD_CHM %>%
+  nrow()
+
+# Nombre d'espèces
+S = 6
+
+# Comptenue de la matrice présence absence
+Y = BD_CHM %>%
+  select(-all_of(c("id", "DBH","Plot","CensusYear","idRegePlot","idTree", "CHM", "G", "nombre_tiges")))
+
+# Le diamètre
+X = BD_CHM %>%
+  dplyr::pull(DBH)
+
+# La hauteur de canopée (CHM)
+Z = BD_CHM %>%
+  dplyr::pull(CHM)
+
+# Prédiction du CHM pour les graphes
+Z_pred = seq(from = min(Z), 
+             to = max(Z),
+             by = 1)
+# Longueur de la prédiction CHM
+K_pred = length(Z_pred)
+
+# Prédiction du DBH
+X_pred = seq(from = 1,
+             to = max(X),
+             by = 0.01) 
+
+# Longueur de la prédiction DBH
+N_pred = length(X_pred)
+
+# Intercept
+alpha_s = alpha_esp_CHM
+
+# Compilation du modèle
+fit_complet_CHM = stan("m_centre_reduit.stan",
+               data = list(N = N, 
+                           S = S,
+                           Y = Y,
+                           X = X,
+                           Z = Z,
+                           alpha_s = alpha_s,
+                           N_pred = N_pred,
+                           X_pred = X_pred,
+                           K_pred = K_pred,
+                           Z_pred = Z_pred),
+               iter = 100, chains = 4)
+
+# Convergence du modèle
+complet_traceplot <- traceplot(fit_complet_CHM, pars = parameters)
+# Paramètres
+complet_summary <- summary(fit_complet_CHM, 
+         pars = parameters)
+
+# Distribution à posteriori
+complet_mcmc <- mcmc_trace(fit_complet_CHM, 
+        pars = parameters)
+
+# Inf
+complet_mcmc_intervals <- mcmc_intervals(fit_complet_CHM, pars = parameters)
+```
+
+Maintenant nous allons faire les graphes.
+
+```{r df_plot}
+# Création couleurs daltonien
+esp_6_colors <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#CC79A7")
+
+Y_pred <- extract(fit_complet_CHM, permuted = T)
+
+esp_6 <- c("Iryanthera sagotiana", "Qualea rosea", "Vouacapoua americana", "Pradosia cochlearia","Jacaranda copaia","Dicorynia guianensis")
+
+# Créer un dataframe vide pour stocker les données
+esp_CHM <- data.frame()
+
+# Boucle for pour parcourir les espèces
+for (i in 1:6) {
+  # Calculer les statistiques pour chaque espèce
+  Y_mean <- apply(Y_pred$Y_pred_z[,,i], 2, mean)
+  Y_lower <- apply(Y_pred$Y_pred_z[,,i], 2, quantile, 0.025)
+  Y_upper <- apply(Y_pred$Y_pred_z[,,i], 2, quantile, 0.975)
+  
+  # Créer un dataframe temporaire pour cette espèce
+  temp_df <- data.frame(
+    Z_pred = Z_pred,
+    Y_mean = Y_mean,
+    Y_lower = Y_lower,
+    Y_upper = Y_upper,
+    Species = paste0("Species ", i)
+  )
+  
+  # Ajouter le dataframe temporaire au dataframe principal
+  esp_CHM <- rbind(esp_CHM, temp_df)
+}
+
+# On cherche à ajouter les couleurs daltonien
+plot_CHM <- ggplot(esp_CHM, aes(x = Z_pred, color = Species)) +
+  geom_line(aes(y = Y_mean)) +
+  geom_ribbon(aes(ymin = Y_lower, ymax = Y_upper, fill = Species), alpha = 0.3, linetype = "dashed") +
+  labs(x = "Hauteur de canopée (en m)", y = "Probabilité prédite", color = "Espèce", fill = "Espèce") +
+  scale_color_manual(values = esp_6_colors, labels = esp_6) +
+  scale_fill_manual(values = esp_6_colors, labels = esp_6) +
+  theme_default() +
+  theme(
+    panel.grid.major.y = element_line(color = "grey80", size = 0.2),
+    panel.grid.minor.y = element_line(color = "grey90", size = 0.1)
+  ) +
+  guides(
+    color = guide_legend(override.aes = list(linetype = "solid")),
+    fill = guide_legend(override.aes = list(alpha = 0.3))
+  )
+
+## DBH
+# Créer un dataframe vide pour stocker les données
+esp_DBH <- data.frame()
+
+# Boucle for pour parcourir les espèces
+for (i in 1:6) {
+  # Calculer les statistiques pour chaque espèce
+  Y_mean <- apply(Y_pred$Y_pred_x[,,i], 2, mean)
+  Y_lower <- apply(Y_pred$Y_pred_x[,,i], 2, quantile, 0.025)
+  Y_upper <- apply(Y_pred$Y_pred_x[,,i], 2, quantile, 0.975)
+
+  # Créer un dataframe temporaire pour cette espèce
+  temp_df <- data.frame(
+    X_pred = X_pred,
+    Y_mean = Y_mean,
+    Y_lower = Y_lower,
+    Y_upper = Y_upper,
+    Species = paste0("Species ", i)
+  )
+  
+  # Ajouter le dataframe temporaire au dataframe principal
+  esp_DBH <- rbind(esp_DBH, temp_df)
+}
+
+# Tracer le graphique avec ggplot2
+plot_DBH <- ggplot(esp_DBH, aes(x = X_pred, color = Species)) +
+  geom_line(aes(y = Y_mean)) +
+  geom_ribbon(aes(ymin = Y_lower, ymax = Y_upper, fill = Species), alpha = 0.3, linetype = "dashed") +
+  labs(x = "DBH (en cm)", y = "Probabilité prédite", color = "Espèce", fill = "Espèce") +
+  scale_color_manual(values = esp_6_colors, labels = esp_6) +
+  scale_fill_manual(values = esp_6_colors, labels = esp_6) +
+  theme_default() +
+  theme(
+    panel.grid.major.y = element_line(color = "grey80", size = 0.2),
+    panel.grid.minor.y = element_line(color = "grey90", size = 0.1)
+  ) +
+  guides(
+    color = guide_legend(override.aes = list(linetype = "solid")),
+    fill = guide_legend(override.aes = list(alpha = 0.3))
+  )
+
+# Fusion des deux
+complet_plot_CHM <- grid.arrange(plot_CHM, plot_DBH, ncol = 2)
+
+# Sauvegarde
+ggsave(filename = "complet_plot_CHM.pdf",
+       plot = complet_plot_CHM,
+  width = 11, height = 8)
+```
+
+Alors aux premiers abord on peut voir une distribution de qualea rosea complètement différente. Mais cela semble égament provenir du jeu de donnée plus faire. Faudrait refaire la courbe avec la surface terrière sur ces données là.
+
+## Heatmap
+
+/! Les commentaires du jury précisent que l'ontogénie ne peut être approximé par le diamètre de l'arbre./!\
+Nous le réalisons uniquement comme point de comparaison à la surface terrière (G).
+
+```{r fit_heatmap}
+# Compilation du modèle
+fit_heatmap_CHM = stan("m_heatmap.stan",
+               data = list(N = N, 
+                           S = S,
+                           Y = Y,
+                           X = X,
+                           Z = Z,
+                           alpha_s = alpha_s,
+                           N_pred = N_pred,
+                           X_pred = X_pred,
+                           K_pred = K_pred,
+                           Z_pred = Z_pred),
+               iter = 100, chains = 4)
+# Convergence du modèle
+heatmap_CHM_traceplot <- traceplot(fit_heatmap_CHM, pars = parameters)
+# Paramètres
+heatmap_CHM_summary <- summary(fit_heatmap_CHM, 
+         pars = parameters)
+
+# Distribution à posteriori
+heatmap_CHM_mcmc <- mcmc_trace(fit_heatmap_CHM, 
+        pars = parameters)
+
+# Inf
+heatmap_CHM_mcmc_intervals <- mcmc_intervals(fit_heatmap, pars = parameters)
+
+```
+
+## Graphique
+
+Nous aimerions faire un graphe 3D permettant de regarder l'impact de la hauteur de canopée (CHM) en prenant en compte le DBH. Comme le titre l'indique nous allons utiliser un heatmap. Dans un premier temps l'extraction des données du modèle prédit nous donne les dimensions suivante : *Y_pred [iterations, N_pred, K_pred, S]*
+
+\
+Pour pouvoir construire notre data.frame, nous allons tout d'abord créer les limites de définition de nos variables.
+
+```{r dim_vecteur}
+dbh <- seq(min(X_pred), max(X_pred), length.out = N_pred)
+chm <- seq(min(Z_pred), max(Z_pred), length.out = K_pred)
+```
+
+Maintenant, nous allons calculer la moyenne pour permettre de fusionner l'ensemble des distributions des chaînes à l'aide de la fonction apply. *c(2,3,4)* précise qu'il faut calculer la moyenne à chaque dimensions cité cad X_pred, Z_pred et P.
+
+```{r moyenne}
+# Récupération des generated quantities
+Y_pred <- extract(fit_heatmap_CHM)$Y_pred
+# Dimension [iterations, N_pred, K_pred, S]
+dim(Y_pred)
+# 200 6776   23    6
+# Moyenne des proba sur toutes les itérations
+Y_pred_mean <- apply(Y_pred, c(2,3,4), mean)
+```
+
+Alors là on a un tableau 4D que je ne serais pas décrire. Mais en tout cas, après avoir appliquer le format long on aura un data.frame avec une ligne par combinaison de DBH, CHM et espèce, et une colonne pour les probabilités moyennes.
+
+```{r format_long}
+df_long <- expand.grid(DBH = dbh, CHM = chm, Species = esp_6) %>%
+  mutate(P = as.vector(Y_pred_mean))
+```
+
+Maintenant que nous avons le data.frame il nous reste à faire le plot.
+
+```{r plot}
+# Création du ggplot
+heatmap_ggplot <- df_long %>%
+ggplot(aes(x = DBH, y = CHM, fill = P)) +
+  geom_tile() + #heatmap
+  scale_fill_viridis_c() + # couleur daltonien
+  facet_wrap(~Species) +
+  theme_minimal() +
+  labs(x = "Diamètre (en cm)", y = "Hauteur de canopée (en m)", fill = "Probabilité")+
+  xlim(1,70)
+
+# Sauvegarde
+ggsave(filename = "heatmap_CHM.pdf",
+       plot = heatmap_ggplot,
+  width = 11, height = 8)
+```
+
+# Sauvegarde
+
+```{r}
+# Modèle
+saveRDS(fit_complet_CHM, file = "fit_complet_CHM.rds")
+
+# Summary
+write.csv(as.data.frame(complet_summary), file = "complet_summary_CHM.csv")
+
+# Traceplot
+ggsave(filename = "complet_CHM_traceplot.pdf",
+         plot = complet_traceplot,
+  width = 11, height = 8)
+# Mcmc_trace
+ggsave(filename = "complet_CHM_mcmc.pdf",
+       plot = complet_mcmc,
+         width = 11, height = 8)
+#mcmc_intervals
+ggsave(filename = "complet_CHM_mcmc_intervals.pdf",
+       plot = complet_mcmc_intervals,
+       width = 11, height = 8)
+
+# GGplot
+ggsave(filename = "complet_CHM_ggplot.pdf",
+       plot = complet_plot_CHM,
+  width = 11, height = 8)
+
+# Enregistrement de la compilation
+write_rds(fit_heatmap_CHM, file = "fit_heatmap_CHM.rds")
+```
+
+# Surface terrière
+
+Pour pouvoir comparer à quelle point varie nos données lorsque l'on prend en compte la surface terrière au lieu du CHM
+
+## Courbes
+
+```{r courbes}
+# Nombre d'observations
+N = BD_CHM %>%
+  nrow()
+
+# Nombre d'espèces
+S = 6
+
+# Comptenue de la matrice présence absence
+Y = BD_CHM %>%
+  dplyr::select(-all_of(c("id", "DBH","Plot","CensusYear","idRegePlot","idTree", "CHM", "G", "nombre_tiges")))
+
+# Le diamètre
+X = BD_CHM %>%
+  dplyr::pull(DBH)
+
+# La surface terrière
+Z = BD_CHM %>%
+  dplyr::pull(G)
+
+# Prédiction du G pour les graphes
+Z_pred = seq(from = min(Z), 
+             to = max(Z),
+             by = 0.01)
+# Longueur de la prédiction G
+K_pred = length(Z_pred)
+
+# Prédiction du DBH
+X_pred = seq(from = 1,
+             to = max(X),
+             by = 0.01) 
+
+# Longueur de la prédiction DBH
+N_pred = length(X_pred)
+
+# Intercept
+alpha_s = alpha_esp_CHM
+
+# Compilation du modèle
+fit_complet_CHM2 = stan("m_centre_reduit.stan",
+               data = list(N = N, 
+                           S = S,
+                           Y = Y,
+                           X = X,
+                           Z = Z,
+                           alpha_s = alpha_s,
+                           N_pred = N_pred,
+                           X_pred = X_pred,
+                           K_pred = K_pred,
+                           Z_pred = Z_pred),
+               iter = 100, chains = 4)
+
+# Convergence du modèle
+complet_traceplot <- traceplot(fit_complet_CHM2, pars = parameters)
+# Paramètres
+complet_summary <- summary(fit_complet_CHM2, 
+         pars = parameters)
+
+# Distribution à posteriori
+complet_mcmc <- mcmc_trace(fit_complet_CHM2, 
+        pars = parameters)
+
+# Inf
+complet_mcmc_intervals <- mcmc_intervals(fit_complet_CHM2, pars = parameters)
+```
+
+Maintenant nous allons faire les graphes.
+
+```{r df_plot}
+# Création couleurs daltonien
+esp_6_colors <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#CC79A7")
+
+Y_pred <- extract(fit_complet_CHM2, permuted = T)
+
+esp_6 <- c("Iryanthera sagotiana", "Qualea rosea", "Vouacapoua americana", "Pradosia cochlearia","Jacaranda copaia","Dicorynia guianensis")
+
+# Créer un dataframe vide pour stocker les données
+esp_G <- data.frame()
+
+# Boucle for pour parcourir les espèces
+for (i in 1:6) {
+  # Calculer les statistiques pour chaque espèce
+  Y_mean <- apply(Y_pred$Y_pred_z[,,i], 2, mean)
+  Y_lower <- apply(Y_pred$Y_pred_z[,,i], 2, quantile, 0.025)
+  Y_upper <- apply(Y_pred$Y_pred_z[,,i], 2, quantile, 0.975)
+  
+  # Créer un dataframe temporaire pour cette espèce
+  temp_df <- data.frame(
+    Z_pred = Z_pred,
+    Y_mean = Y_mean,
+    Y_lower = Y_lower,
+    Y_upper = Y_upper,
+    Species = paste0("Species ", i)
+  )
+  
+  # Ajouter le dataframe temporaire au dataframe principal
+  esp_G <- rbind(esp_G, temp_df)
+}
+
+# On cherche à ajouter les couleurs daltonien
+plot_G <- ggplot(esp_G, aes(x = Z_pred, color = Species)) +
+  geom_line(aes(y = Y_mean)) +
+  geom_ribbon(aes(ymin = Y_lower, ymax = Y_upper, fill = Species), alpha = 0.3, linetype = "dashed") +
+  labs(x = "Surface terrière (en m²/ha)", y = "Probabilité prédite", color = "Espèce", fill = "Espèce") +
+  scale_color_manual(values = esp_6_colors, labels = esp_6) +
+  scale_fill_manual(values = esp_6_colors, labels = esp_6) +
+  theme_default() +
+  theme(
+    panel.grid.major.y = element_line(color = "grey80", size = 0.2),
+    panel.grid.minor.y = element_line(color = "grey90", size = 0.1)
+  ) +
+  guides(
+    color = guide_legend(override.aes = list(linetype = "solid")),
+    fill = guide_legend(override.aes = list(alpha = 0.3))
+  )
+
+## DBH
+# Créer un dataframe vide pour stocker les données
+esp_DBH <- data.frame()
+
+# Boucle for pour parcourir les espèces
+for (i in 1:6) {
+  # Calculer les statistiques pour chaque espèce
+  Y_mean <- apply(Y_pred$Y_pred_x[,,i], 2, mean)
+  Y_lower <- apply(Y_pred$Y_pred_x[,,i], 2, quantile, 0.025)
+  Y_upper <- apply(Y_pred$Y_pred_x[,,i], 2, quantile, 0.975)
+
+  # Créer un dataframe temporaire pour cette espèce
+  temp_df <- data.frame(
+    X_pred = X_pred,
+    Y_mean = Y_mean,
+    Y_lower = Y_lower,
+    Y_upper = Y_upper,
+    Species = paste0("Species ", i)
+  )
+  
+  # Ajouter le dataframe temporaire au dataframe principal
+  esp_DBH <- rbind(esp_DBH, temp_df)
+}
+
+# Tracer le graphique avec ggplot2
+plot_DBH <- ggplot(esp_DBH, aes(x = X_pred, color = Species)) +
+  geom_line(aes(y = Y_mean)) +
+  geom_ribbon(aes(ymin = Y_lower, ymax = Y_upper, fill = Species), alpha = 0.3, linetype = "dashed") +
+  labs(x = "DBH (en cm)", y = "Probabilité prédite", color = "Espèce", fill = "Espèce") +
+  scale_color_manual(values = esp_6_colors, labels = esp_6) +
+  scale_fill_manual(values = esp_6_colors, labels = esp_6) +
+  theme_default() +
+  theme(
+    panel.grid.major.y = element_line(color = "grey80", size = 0.2),
+    panel.grid.minor.y = element_line(color = "grey90", size = 0.1)
+  ) +
+  guides(
+    color = guide_legend(override.aes = list(linetype = "solid")),
+    fill = guide_legend(override.aes = list(alpha = 0.3))
+  )
+
+# Fusion des deux
+complet_plot_CHM2 <- grid.arrange(plot_G, plot_DBH, ncol = 2)
+
+# Sauvegarde
+ggsave(filename = "complet_plot_CHM2.pdf",
+       plot = complet_plot_CHM2,
+  width = 11, height = 8)
+```
+
+Alors aux premiers abord on peut voir une distribution de qualea rosea complètement différente. Mais cela semble égament provenir du jeu de donnée plus faire. Faudrait refaire la courbe avec la surface terrière sur ces données là.
+
+## Heatmap
+
+/! Les commentaires du jury précisent que l'ontogénie ne peut être approximé par le diamètre de l'arbre./!\
+Nous le réalisons uniquement comme point de comparaison à la surface terrière (G).
+
+```{r fit_heatmap}
+# Compilation du modèle
+fit_heatmap_CHM = stan("m_heatmap.stan",
+               data = list(N = N, 
+                           S = S,
+                           Y = Y,
+                           X = X,
+                           Z = Z,
+                           alpha_s = alpha_s,
+                           N_pred = N_pred,
+                           X_pred = X_pred,
+                           K_pred = K_pred,
+                           Z_pred = Z_pred),
+               iter = 100, chains = 4)
+# Convergence du modèle
+heatmap_CHM_traceplot <- traceplot(fit_heatmap_CHM, pars = parameters)
+# Paramètres
+heatmap_CHM_summary <- summary(fit_heatmap_CHM, 
+         pars = parameters)
+
+# Distribution à posteriori
+heatmap_CHM_mcmc <- mcmc_trace(fit_heatmap_CHM, 
+        pars = parameters)
+
+# Inf
+heatmap_CHM_mcmc_intervals <- mcmc_intervals(fit_heatmap, pars = parameters)
+
+```
+
+## Graphique
+
+Nous aimerions faire un graphe 3D permettant de regarder l'impact de la hauteur de canopée (CHM) en prenant en compte le DBH. Comme le titre l'indique nous allons utiliser un heatmap. Dans un premier temps l'extraction des données du modèle prédit nous donne les dimensions suivante : *Y_pred [iterations, N_pred, K_pred, S]*
+
+\
+Pour pouvoir construire notre data.frame, nous allons tout d'abord créer les limites de définition de nos variables.
+
+```{r dim_vecteur}
+dbh <- seq(min(X_pred), max(X_pred), length.out = N_pred)
+g <- seq(min(Z_pred), max(Z_pred), length.out = K_pred)
+```
+
+Maintenant, nous allons calculer la moyenne pour permettre de fusionner l'ensemble des distributions des chaînes à l'aide de la fonction apply. *c(2,3,4)* précise qu'il faut calculer la moyenne à chaque dimensions cité cad X_pred, Z_pred et P.
+
+```{r moyenne}
+# Récupération des generated quantities
+Y_pred <- extract(fit_heatmap_CHM)$Y_pred
+# Dimension [iterations, N_pred, K_pred, S]
+dim(Y_pred)
+# 200 6776   23    6
+# Moyenne des proba sur toutes les itérations
+Y_pred_mean <- apply(Y_pred, c(2,3,4), mean)
+```
+
+Alors là on a un tableau 4D que je ne serais pas décrire. Mais en tout cas, après avoir appliquer le format long on aura un data.frame avec une ligne par combinaison de DBH, CHM et espèce, et une colonne pour les probabilités moyennes.
+
+```{r format_long}
+df_long <- expand.grid(DBH = dbh, CHM = chm, Species = esp_6) %>%
+  mutate(P = as.vector(Y_pred_mean))
+```
+
+Maintenant que nous avons le data.frame il nous reste à faire le plot.
+
+```{r plot}
+# Création du ggplot
+heatmap_ggplot <- df_long %>%
+ggplot(aes(x = DBH, y = CHM, fill = P)) +
+  geom_tile() + #heatmap
+  scale_fill_viridis_c() + # couleur daltonien
+  facet_wrap(~Species) +
+  theme_minimal() +
+  labs(x = "Diamètre (en cm)", y = "Hauteur de canopée (en m)", fill = "Probabilité")+
+  xlim(1,70)
+
+# Sauvegarde
+ggsave(filename = "heatmap_CHM.pdf",
+       plot = heatmap_ggplot,
+  width = 11, height = 8)
+```
