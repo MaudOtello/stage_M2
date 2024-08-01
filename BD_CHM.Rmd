@@ -4,15 +4,27 @@ author: "Maud OTELLO"
 date: "2024-07-15"
 output: word_document
 ---
-Ce script a pour objectif d'explorer les résultats liées à un CHM moyen mesurée à des tampons de 15m de rayon. Il fait suite au script BD_env. Nous avons extrait sur les parcelles d'intérêt les
+
+Ce script a pour objectif d'explorer les résultats liés à un CHM moyen mesuré à des tampons de 15m de rayon. Il fait suite au script BD_env. Il constitut une réadaptation du script extraction réalisé par Thomas Gaquiert.
 
 ```{r package}
 library(tidyverse) # Pour le langage et les fonction associées
 library(sf)        # Pour manipuler les shp
 library(raster)    # Pour manipuler les raster (.tif), désactive dplyr
+library(nnet)      # Pour la regression logistique multinomiale
+library(gtsummary) # Pour la summary de la reg-log-mult
+library(corrplot)  # Pour les corrélations
 ```
 
-On reprend ici l'extraction du CHM par placette. 
+Si utilisation d'une seule partie du script importer directement le jeu de donnée, et passer à la partie [Analyses]{.underline}. Sinon lancer la création du jeu de données.
+
+```{r BD_CHM}
+BD_CHM <- read.csv("~/cours_r/Stage_M2/BD_CHM.csv", row.names=1)
+```
+
+# Jeu de données
+
+Le lancement de la création du jeu de donné reprend ici l'extraction du CHM par placette.
 
 ```{r environnement de travail, include = F}
 # changer temporairement d'environnement de travail pour récup fichier
@@ -21,8 +33,6 @@ setwd("C:/Users/Maud Otello/Documents/cours_r/Stage_M2/Cartographie")
 #importation des fichiers
 Placettes <- st_read('RegenerationPlots.shp')
 ```
-
-## Extraction
 
 A partir d'un raster nous cherchons à savoir l'environnement lumineux sur les 15m environnant le centre des placettes.
 
@@ -52,7 +62,7 @@ return(var_raster_placettes)
 }
 ```
 
-Une fois cette fonction créée nous pouvons l'appliquer par années
+Une fois cette fonction créée nous pouvons l'appliquer par années.
 
 ```{r exemple CHM}
 # selection des centres 'réels' sur la P1 / 6 /11
@@ -115,10 +125,10 @@ CHM_buffer <- var_chm_2004_buffer_placettes %>%
             , Median_CHM_2016, by = "idRegePlot")
 ```
 
-# Présence/absence
-La question ici est celle de quelle année considère-t-on ? Car dans notre ancienne analyse la surface terrière associée était celle lors de l'observation.
+La question ici est celle de quelle année considère-t-on ? Car dans notre ancienne analyse la surface terrière associée était celle lors de l'observation. Nous prenons de manière totalement subjective les années concordantes à 1an près.
 
-/!\ pour des facilitation de code nous allons considérer que l'année CHM 2009 écrire 2008. Il devra être précisé pour toutes les manipulation de ce CHM. Et également qu'il s'agit des médianes et pas des moyennes.
+/!\\ pour des facilitations de code nous allons considérer que l'année **CHM 2009 = CensusYear 2008**. Il devra être précisé pour toutes les manipulation de ce CHM. Et également qu'il s'agit **des médianes et pas des moyennes**. /!\\
+
 ```{r}
 # Nom des colonnes
 CHM_censusYear <- CHM_buffer %>%
@@ -142,7 +152,83 @@ BD_esp_CHM <- read.csv("~/cours_r/Stage_M2/BD_esp_CHM.csv", row.names=1)
 BD_CHM <- left_join(BD_esp_CHM, CHM_censusYear, by = c("idRegePlot","CensusYear"))
 ```
 
+# Analyses
+
+Nous avons extrait les données CHM maintenant reste plus qu'à observer sa répartition.
+
+## CHM
+
+Observons comment se répartie notre variable environnementale.
+
+```{r description_CHM}
+# Sommaire du CHM
+summary(BD_CHM$CHM)
+
+# Boxplot par année de recensement
+BD_CHM %>%
+  ggplot(aes(x = factor(CensusYear), y = CHM, fill = factor(CensusYear))) +
+  geom_boxplot(outlier.shape = NA, alpha = 0.7) +
+  geom_jitter(width = 0.2, alpha = 0.5, color = "black") +
+  theme_linedraw() +
+  labs(
+    x = "Année de recensement",
+    y = "Hauteur de canopée (en m)",
+    title = "Distribution de la hauteur de canopée par année de recensement"
+  ) +
+  theme(
+    legend.position = "none",  # Supprime la légende
+    plot.title = element_text(hjust = 0.5),  # Centre le titre
+    axis.text.x = element_text(angle = 45, hjust = 1)  # Rotation des étiquettes de l'axe x
+  ) +
+  scale_fill_brewer(palette = "Set2") +  # Utilise une palette de couleurs prédéfinie
+  scale_x_discrete(name = "Année de recensement")  # Assure que l'axe x est bien nommé
+
+# Histogramme
+## Basique
+BD_CHM %>%
+  select(CHM)%>%
+  ggplot(aes(x = CHM))+
+   geom_histogram(breaks = seq(15,40, by = 1 ),fill = "turquoise3") +
+    theme_light() +
+    labs(x = "CHM", y = "Effectif") 
+
+## Stylé
+plot_CHM <- BD_CHM %>%
+  ggplot(aes(x = CHM)) +
+  geom_histogram(breaks = seq(15, 40, by = 1),
+                 fill = "turquoise3",
+                 color = "white",
+                 alpha = 0.8) +
+  geom_density(aes(y = ..count.. * 1), 
+               color = "darkblue", 
+               size = 1) +
+  theme_minimal() +
+  labs(
+    x = "Hauteur de canopée (m)",
+    y = "Effectif",
+    title = "Distribution de la hauteur de canopée",
+    subtitle = "Histogramme avec courbe de densité"
+  ) +
+  scale_x_continuous(breaks = seq(15, 40, by = 5)) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
+    plot.subtitle = element_text(hjust = 0.5, face = "italic", size = 12),
+    axis.title = element_text(face = "bold"),
+    panel.grid.major = element_line(color = "gray80"),
+    panel.grid.minor = element_line(color = "gray90")
+  ) +
+  annotate("text", x = 38, y = max(ggplot_build(last_plot())$data[[1]]$count), 
+           label = paste("n =", nrow(BD_CHM)), 
+           hjust = 1, vjust = 1, fontface = "italic", color = "gray30")
+
+# Sauvegarde
+ggsave(filename = "plot_CHM.pdf",
+       plot = plot_CHM,
+       width = 11, height = 8)
+```
+
 ## Surface terrière
+
 Nous souhaitons faire une comparaison entre la surface terrière et la hauteur de canopée. Nous allons donc ajouter au calcule la surface terrière
 
 ```{r importation Guyafor, include = F}
@@ -155,6 +241,7 @@ Guyafor <- rbind(P1,P6,P11)
 ```
 
 Essayons alors
+
 ```{r surface_terriere}
 # Sélection des années RegePlot, individus vivants
 BD_env <- Guyafor %>%
@@ -183,5 +270,108 @@ BD_CHM <- dplyr::left_join(BD_CHM, BD_env_placette, by = c( "idRegePlot", "Censu
 # write.csv(BD_CHM, file = "BD_CHM.csv")
 ```
 
-C'est bon c'est gagné
-FIN de script ! 
+## G vs CHM
+
+Alors maintenant que nous avons fait tout cela, j'aimerai observer la variance entre mes variables. Nous souhaitons regarder les corrélations entre ces différentes variables. Pour cela nous allons réaliser un tableau de corrélation.
+
+```{r correlation}
+# Tableau des corrélations
+cor_CHM <- BD_CHM_long %>%
+  dplyr::select(CHM,G,DBH)%>%
+  cor()
+
+# Graphique des corrélations
+cor_CHM %>%
+corrplot(method = "color", 
+         type = "upper", 
+         order = "hclust",
+         addCoef.col = "black", # Ajoute les coefficients de corrélation
+         tl.col = "black", tl.srt = 45, # Couleur et rotation des labels
+         diag = FALSE, # Ne pas afficher la diagonale
+         col = colorRampPalette(c("blue", "white", "red"))(200))
+
+```
+
+On peut voir que les correlations sont positives. Elles nous donnent une idée de l'intensité et le sens de la relation entre nos variables.
+
+```{r plots}
+# G * CHM
+BD_CHM %>%
+  ggplot(aes(x = G*(10000 / (pi * 15^2)), y = CHM)) +
+  geom_point()+
+  labs(x ="G en m²/ha", y ="CHM (en m)" ) 
+```
+
+Une première queston serait de savoir combien nous disposons d'observations par espèces :\
+
+```{r}
+BD_CHM_long %>%
+  group_by(espece)%>%
+  count()
+```
+
+J'aimerai comparer l'intérêt d'ajouter le CHM à notre analyse en regardant si l'information apporté est supérieur ou inférieur à celui de la surface terrière. Nous allons comparer ces deux variables quantitatives par une analyse logistic avec une comparaison de l'Akaike Information criterion (AIC).
+
+Régression logisitique multinomiale, car nous avons une espèce qui peut être présente ou absente, et on souhaite modéliser cette présence en fonction de facteurs explicatifs (CHM, G).
+
+Pour notre analyse il nous faut pouvoir manipuler chaque ligne indépendamment donc nous allons convertir au format long avec une colonne qui indique le nom de l'espèce
+
+```{r}
+# Format long
+BD_CHM_long <- BD_CHM %>%
+  pivot_longer(
+    cols = c(X1, X2, X3, X4, X5, X6),
+    names_to = "espece",
+    values_to = "presence"
+  ) %>%
+  filter(presence == 1) 
+
+# Modèle logistique multinomiale
+BD_CHM_long <- BD_CHM_long %>% 
+  mutate(espece = as.factor(espece))
+
+# CHM
+model_CHM <- multinom(espece ~ CHM, data = BD_CHM_long)
+
+summary(model_CHM)
+# G
+model_G <- multinom(espece ~ G, data = BD_CHM_long)
+
+summary(model_G)
+
+# DBH
+model_DBH <- multinom(espece ~ DBH, data = BD_CHM_long)
+
+summary(model_DBH)
+
+#
+# Conversion en m²/ha
+conversion_factor <- 10000 / (pi * 15^2)
+# Correlation plot
+BD_CHM %>%
+ggplot(aes(x = G * conversion_factor, y = CHM)) +
+  geom_point() +
+  labs(x = "Surface terrière", y = "Hauteur de canopée") +
+  theme_minimal() 
+
+```
+
+Nous obtenons les AIC suivant :
+
+CHM : 2355.171
+
+G : 2390.383
+
+L'évaluation de la différence entre modèle est faite de la manière suivante :
+
+$$
+\Delta AIC = AIC_G - AIC_{CHM} = 2390.383 - 2355.171 = 35.212
+$$
+
+$$
+ AIC_G > AIC_{CHM}
+$$
+
+On obtient une différence de AIC de 35.212 \> 10, ce nous indique que le modèle utilisant les données de CHM est significativement meilleur que celui utilisant les données de surface terrière (G).
+
+C'est quoi les coefficients montrée : log-odds ?

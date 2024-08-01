@@ -11,3 +11,6 @@ poubelle (quarto)
 %
 .RDataTmp
 tree_correction
+*.pdf
+*.rds
+*.csv

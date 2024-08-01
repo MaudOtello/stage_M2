@@ -85,69 +85,6 @@ Très bien les abondances semblent coincidé avec ce dont on s'attendait.
 
 On cherche à savoir **Quelle est la probabilité d'appartenir à une espèce sachant le DBH et le CHM ?** pour cela nous allons faire dans une première partie les courbes de distribution et dans une seconde partie les heatmaps.
 
-Observons comment se répartie notre variable environnementale.
-
-```{r description_CHM}
-# Sommaire du CHM
-summary(BD_CHM$CHM)
-
-# Boxplot par année de recensement
-BD_CHM %>%
-  ggplot(aes(x = factor(CensusYear), y = CHM, fill = factor(CensusYear))) +
-  geom_boxplot(outlier.shape = NA, alpha = 0.7) +
-  geom_jitter(width = 0.2, alpha = 0.5, color = "black") +
-  theme_linedraw() +
-  labs(
-    x = "Année de recensement",
-    y = "Hauteur de canopée (en m)",
-    title = "Distribution de la hauteur de canopée par année de recensement"
-  ) +
-  theme(
-    legend.position = "none",  # Supprime la légende
-    plot.title = element_text(hjust = 0.5),  # Centre le titre
-    axis.text.x = element_text(angle = 45, hjust = 1)  # Rotation des étiquettes de l'axe x
-  ) +
-  scale_fill_brewer(palette = "Set2") +  # Utilise une palette de couleurs prédéfinie
-  scale_x_discrete(name = "Année de recensement")  # Assure que l'axe x est bien nommé
-
-# Histogramme
-## Basique
-BD_CHM %>%
-  select(CHM)%>%
-  ggplot(aes(x = CHM))+
-   geom_histogram(breaks = seq(15,40, by = 1 ),fill = "turquoise3") +
-    theme_light() +
-    labs(x = "CHM", y = "Effectif") 
-
-## Stylé
-BD_CHM %>%
-  ggplot(aes(x = CHM)) +
-  geom_histogram(breaks = seq(15, 40, by = 1),
-                 fill = "turquoise3",
-                 color = "white",
-                 alpha = 0.8) +
-  geom_density(aes(y = ..count.. * 1), 
-               color = "darkblue", 
-               size = 1) +
-  theme_minimal() +
-  labs(
-    x = "Hauteur de canopée (m)",
-    y = "Effectif",
-    title = "Distribution de la hauteur de canopée",
-    subtitle = "Histogramme avec courbe de densité"
-  ) +
-  scale_x_continuous(breaks = seq(15, 40, by = 5)) +
-  theme(
-    plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
-    plot.subtitle = element_text(hjust = 0.5, face = "italic", size = 12),
-    axis.title = element_text(face = "bold"),
-    panel.grid.major = element_line(color = "gray80"),
-    panel.grid.minor = element_line(color = "gray90")
-  ) +
-  annotate("text", x = 38, y = max(ggplot_build(last_plot())$data[[1]]$count), 
-           label = paste("n =", nrow(BD_CHM)), 
-           hjust = 1, vjust = 1, fontface = "italic", color = "gray30")
-```
 
 ```{r parameters}
 parameters <- c("alpha[1]", "beta[1]", "gamma[1]", "delta[1]", "epsilon[1]",
@@ -446,6 +383,46 @@ write_rds(fit_heatmap_CHM, file = "fit_heatmap_CHM.rds")
 # Surface terrière
 
 Pour pouvoir comparer à quelle point varie nos données lorsque l'on prend en compte la surface terrière au lieu du CHM
+
+Nous allons regarder la distribution de nos points autour de la surface terrière.
+```{r plot_G}
+# Conversion en m²/ha
+conversion_factor <- 10000 / (pi * 15^2)
+
+## plot stylé
+plot_G <- BD_CHM %>%
+  ggplot(aes(x = G*conversion_factor)) +
+  geom_histogram(breaks = seq(15, 40, by = 1),
+                 fill = "purple",
+                 color = "white",
+                 alpha = 0.8) +
+  geom_density(aes(y = ..count.. * 1), 
+               color = "darkblue", 
+               size = 1) +
+  theme_minimal() +
+  labs(
+    x = "Surface terrière (m²/ha)",
+    y = "Effectif",
+    title = "Distribution de la surface terrière",
+    subtitle = "Histogramme avec courbe de densité"
+  ) +
+  scale_x_continuous(breaks = seq(15, 40, by = 5)) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
+    plot.subtitle = element_text(hjust = 0.5, face = "italic", size = 12),
+    axis.title = element_text(face = "bold"),
+    panel.grid.major = element_line(color = "gray80"),
+    panel.grid.minor = element_line(color = "gray90")
+  ) +
+  annotate("text", x = 38, y = max(ggplot_build(last_plot())$data[[1]]$count), 
+           label = paste("n =", nrow(BD_CHM)), 
+           hjust = 1, vjust = 1, fontface = "italic", color = "gray30")
+
+# Sauvegarde
+ggsave(filename = "plot_G.pdf",
+       plot = plot_G,
+       width = 11, height = 8)
+```
 
 ## Courbes
 
