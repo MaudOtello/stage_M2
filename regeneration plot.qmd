@@ -1,6 +1,6 @@
 ---
 title: "Regenaration plot"
-format: html
+format: docx
 editor: visual
 ---
 
@@ -11,11 +11,11 @@ setwd("~/cours_r/Stage_M2")
 ```
 
 ```{r Packages, message = FALSE}
-library(tidyverse) #pour toutes les fonctions associées
-library(knitr)     #pour l'affichage des tableaux
-library(sf)        #pour la manipulation des couches shapefiles
-library(ggspatial) #scale bars and north arrows
-library(foreach)   #lancer une action pour chacun de mes objets
+library(tidyverse) # pour toutes les fonctions associées
+library(knitr)     # pour l'affichage des tableaux
+library(kableExtra)# pour bel affichage des tableaux
+library(sf)        # pour la manipulation des couches shapefiles
+library(ggspatial) # scale bars and north arrows
 ```
 
 ```{r 6esp}
@@ -24,7 +24,9 @@ esp_6 <- c("Dicorynia guianensis", "Pradosia cochlearia", "Iryanthera sagotiana"
 ```
 
 # Parcelle 1
+
 ## Importation des données
+
 ```{r création adult p1, include=FALSE}
 #ADULTs : arbre > 10 cm de DBH
 P1_all <- read.csv("~/cours_r/Stage_M2/ParacouP1AllYears.csv", comment.char="#")
@@ -100,11 +102,15 @@ juvenil <- P1_juvenil %>%
 # Fusion 
 tab_p1 <- left_join(juvenil, adult, by = "scientificName")
 
+tab_p1 <- tab_p1 %>%
+  mutate(across(c(min.x, max.x, nombre.x, min.y, max.y, nombre.y), ~ round(., 2)))
+
 ```
 
 # Parcelle 6
 
 ## Importation des données
+
 ```{r création adult p6, include=FALSE}
 #ADULTs : arbre > 10 cm de DBH
 P6_all <- read.csv("~/cours_r/Stage_M2/ParacouP6AllYears.csv", comment.char="#")
@@ -153,6 +159,7 @@ P6_juvenil <- P6_juvenil %>%
 ```
 
 ## Max, min
+
 ```{r adult p6}
 adult <- P6_adult %>%
   group_by(scientificName)%>%
@@ -177,10 +184,15 @@ juvenil <- P6_juvenil %>%
 
 # Fusion 
 tab_p6 <- left_join(juvenil, adult, by = "scientificName")
+
+tab_p6 <- tab_p6 %>%
+  mutate(across(c(min.x, max.x, nombre.x, min.y, max.y, nombre.y), ~ round(., 2)))
 ```
 
 # Parcelle 11
+
 ## Importation des données
+
 ```{r création adult p6, include=FALSE}
 #ADULTs : arbre > 10 cm de DBH
 P11_all <- read.csv("~/cours_r/Stage_M2/ParacouP11AllYears.csv", comment.char="#")
@@ -229,6 +241,7 @@ P11_juvenil <- P11_juvenil %>%
 ```
 
 ## Max, min
+
 ```{r adult p11}
 adult <- P11_adult %>%
   group_by(scientificName)%>%
@@ -253,4 +266,23 @@ juvenil <- P11_juvenil %>%
 
 # Fusion 
 tab_p11 <- left_join(juvenil, adult, by = "scientificName")
+
+tab_p11 <- tab_p11 %>%
+  mutate(across(c(min.x, max.x, nombre.x, min.y, max.y, nombre.y), ~ round(., 2)))
 ```
+
+Par placette, pour toutes les espèces confondues on va avoir
+
+```{r tableaux résumées}
+# Parcelle 1
+kable(tab_p1) %>%
+    add_header_above(c("Parcelle 1" = 7))
+# Parcelle 6
+kable(tab_p6)%>%
+    add_header_above(c("Parcelle 6" = 7))
+# Parcelle 11
+kable(tab_p11)%>%
+    add_header_above(c("Parcelle 11" = 7))
+```
+
+Fin de script

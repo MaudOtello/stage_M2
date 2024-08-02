@@ -250,6 +250,7 @@ write.csv(Guyafor_fin, file = "Guyafor_fin.csv")
 Nous avons un dataset de 1635 observations.
 
 # Matrices
+
 Selon les modèles utilisées les matrices ne seront pas les mêmes. Dans cette section, se trouve la création de chacun de ces jeux de données. Pour rappel nous ne travaillons que sur les 6 espèces d'intérêts. Afin d'aisement pouvoir interpréter les sorties de modèles nous allons factoriser nos noms scientifiques en numéros.
 
 ```{r scientificName_fac}
@@ -264,7 +265,9 @@ Guyafor_AJ <- Guyafor_fin %>%
                                   "X6" = "Dicorynia guianensis"))
 unique(Guyafor_AJ$scientificName)
 ```
+
 il y a un problème d'ncodage de cette partie à repréndre ultérieurement
+
 ```{r}
 Guyafor_AJ <- Guyafor_fin %>%
   mutate(scientificName = case_when(
@@ -287,8 +290,8 @@ test %>%
 
 Pour la création de notre matrice, nous allons partir d'un data.frame qu'on passera sous un format long. On aura en colonne les espèces et en ligne soit une présence (1), soit une absence (0). Nous considérons la présence de notre espèce *S* dans le pool d'étude. Il représente pour chaque individu *S* leur présence 1 et 0 pour toutes les autres espèces (pseudo-absence).
 
-#AAAAAAAAAAAAAAAAAAAAAAAAAAAHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
-Rien ne va plus, il ne veut pas me recode, l'ordre des colonnes n'est pas le bon.
+#AAAAAAAAAAAAAAAAAAAAAAAAAAAHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH Rien ne va plus, il ne veut pas me recode, l'ordre des colonnes n'est pas le bon.
+
 ```{r guyafor_matrice}
 #Création de la matrice avec pivot_wider
 Guyafor_matrix <- Guyafor_AJ %>%

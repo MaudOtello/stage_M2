@@ -15,10 +15,10 @@ setwd("~/cours_r/Stage_M2")
 ```
 
 ```{r Packages}
-library(tidyverse) #pour toutes les fonctions associées
-library(sf)        #pour la manipulation des couches shapefiles
-library(ggspatial) #scale bars and north arrows
-library(foreach)   #lancer une action pour chacun de mes objets
+library(tidyverse) # pour toutes les fonctions associées
+library(sf)        # pour la manipulation des couches shapefiles
+library(ggspatial) # scale bars and north arrows
+library(foreach)   # lancer une action pour chacun de mes objets
 ```
 
 # Données ALT
@@ -64,7 +64,7 @@ Guyafor_plot <- st_read("~/cours_r/Stage_M2/Cartographie/GuyaforPlots.shp")
 Maintenant qu'on a réussi à faire plot le shp il nous reste à essayer de
 faire une petite carte sympa.
 
-```{r}
+```{r visualisation}
 ggplot(topo) +
   geom_sf(aes())
 ```
@@ -86,12 +86,12 @@ paracou_G %>%
   labs(title = "Répartition des DBH", x = "DBH", y = "Fréquence")
 ```
 
-### nuages des points
+### Nuages des points
 
 ```{r nuage de points}
 paracou_G %>%
   count(DBH) %>%
- ggplot(aes( x = DBH)) +
+ ggplot(aes( x = DBH, y = n)) +
   geom_point(position = "identity") +
   labs(title = "Répartition des DBH", x = "DBH", y = "Fréquence")
 ```
@@ -99,52 +99,10 @@ paracou_G %>%
 Sans surprise la quantité d'individus comptabilisé se trouve à des DBH
 \< 25cm. Les plantules prennent plus de place.
 
-### Family
-
-Regardons tout d'abord combien d'individus je dispose par famille.
-Est-ce qu'il y en a qui sortent du lot.
-
-```{r family}
-#Observons les chiffres
-paracou_G %>%
-  group_by(family) %>%
-  distinct() %>%
-  count()
-```
-
-On peut voir qu'il y a 11708 NA. Ce qui est remarquable. Mais également
-qu'il y a des familles sous représentés et d'autre sur représenté. Pour
-mettre en avant cela on va réaliser un graphe comprenant les 20familles
-les moins représenté. Et les familles ayant un nombre d'individus \>
-100. Les ordres de grandeurs ont été pris au hasard. *En quoi les
-familles avec moins de 10 indv sont important à prendre en compte ?*
-
-```{r family_plot}
-#20 familles les plus représenté
-paracou_G %>%
-  count(family, sort = T) %>% #sort trie par ordre décroissant
-  filter(!is.na(family)) %>%
-  head(20) %>%
-  ggplot(aes(x = reorder(family, -n), y = n))+ #afficher dans l'ordre décroissant
-  geom_bar(stat = "identity", fill = "#3e12d1", color = "black") +
-  theme_light() +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
-  labs(title = "20 familles les plus occurentes", x = "Famille", y = "Occurence")
-```
-
-J'aimerai voir le nombre d'occurence par diamètre
-
-```{r occurence par diamètre}
-paracou_G %>%
-  ggplot() %>%
-  geom_hist( aes(x= DBH))
-```
-
 ### Espèces
 
-Maintenant on change d'échelle et on va évaluer tout ça à partir des
-espèces. J'aimerai réaliser le même graphe avec les espèces et qu'il
-m'affiche les couleurs en fonction des familles.
+Regardons tout d'abord combien d'individus je dispose pour les espèces
+les plus représentés avec les couleurs en fonction des familles.
 
 ```{r espèces vs familles}
 paracou_G %>%
@@ -171,8 +129,8 @@ paracou_G %>%
 
 On peut voir que sur les 20 espèces les plus représenté seulement 10
 familles sortent du lot. La présence de *Oxandra asbeckii* est
-sur-représenté. Certaine famille comme les *Sapotacées* font partie des
-plus présente mais à l'échelle de l'espèce cela n'est pas visible.
+sur-représenté. Certaines familles comme les *Sapotacées* font parties
+des plus présente mais à l'échelle de l'espèce cela n'est pas visible.
 
 ## ALT_v2
 
@@ -268,8 +226,13 @@ paracou_ALT %>%
          !is.na(Xutm) &
          !is.na(Yutm))
 ```
+
 Nous voulons savoir le nombre d'individus par espèce et par année.
+
 ```{r}
+# Espèces d'intérêts
+esp_6 <- c("Dicorynia guianensis", "Pradosia cochlearia", "Iryanthera sagotiana", "Qualea rosea", "Vouacapoua americana", "Jacaranda copaia")
+
 Paracou_esp6 <- paracou_ALT %>%
 filter(scientificName %in% esp_6)
 
@@ -315,6 +278,9 @@ essayer de voir quels sont leurs distributions.
 
 ### Espèce par espèce
 
+Prise en main des cartes. Exemple des distributions de certaines
+espèces.
+
 ```{r distribution par espèce}
 #_Oxandra asbeckii_
 paracou_topo %>%
@@ -335,16 +301,6 @@ paracou_topo %>%
   theme_light() +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
   labs(title = "Distribution spatiale de Qualea rosea en fonction de la topographie", color = "Topographie")
-
-#_Lecythis persistens_
-paracou_topo %>%
-  filter(scientificName == "Lecythis persisten") %>%
-  select(scientificName, TopoTypeFr) %>%
-  ggplot() +
-  geom_sf(aes(color = TopoTypeFr)) +
-  theme_light() +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
-  labs(title = "Distribution spatiale de Lecythis persisten en fonction de la topographie", color = "Topographie")
 
 #_Iryanthera sagotiana_
 paracou_topo %>%
@@ -424,8 +380,7 @@ cartes_G[[i]] %>% plot
 
 ### Topo & DBH
 
-Il faut que j'arrive à lui dire de m'afficher la topographie que de la
-parcelle 16.
+Affichage de la topographie que de la parcelle 16.
 
 ```{r topo_P16}
 topo %>%
@@ -440,7 +395,7 @@ topo %>%
         style = north_arrow_fancy_orienteering)
 ```
 
-Il me faut faire apparaitre une graduation de couleur :
+Il me faut faire apparaître une graduation de couleur par DBH :
 
 ```{r graduation de couleur}
 paracou_topo %>%
@@ -648,11 +603,11 @@ L'apperçue des distributions de ces espèces nous montre déjà que ??
 
 # DB_JUVENILES_final
 
-Correspond aux données de Thomas Gaquiert recueilli lors de sa thèse.
-Elles ont été récupéré avec Melaine. Les données sont receuilli par
-hauteur. On aimerait avoir un ordre d'idée de ce qu'il se passe dedans
-cette inventaire. Par facilitation de manipulation on va créer une
-colonne scientificName.
+Correspond aux données de Thomas Gaquiere recueilli lors de sa thèse.
+Elles ont été récupéré avec Melaine. Les données sont par hauteur. On
+aimerait avoir un ordre d'idée de ce qu'il se passe dedans cette
+inventaire. Par facilitation de manipulation on va créer une colonne
+scientificName.
 
 ```{r DB_Juvenils_final}
 # Importation
@@ -793,7 +748,7 @@ UMT_doublon <- Paracou_Juveniles %>%
 Il n'existe apparament pas de doublon. Il semble y avoir des erreurs de
 saisis au niveau des espèces *"Symphonia sp.2, Symphonia sp.4, Symphonia
 sp.3"*. Nous aimerions savoir à quelles lignes ils sont et en quelles
-quantités.
+quantités. PS : ce n'est pas le cas d'après Gaëlle.
 
 ```{r erreurs de saisi}
 erreur <- Paracou_Juveniles %>%
@@ -901,7 +856,7 @@ P1 %>%
   labs(title = "Occurence des 20 espèces les moins fréquentes sur la P1", x = "Espèces", y = "Occurence")
 ```
 
-/! Ils sont rangés par ordre alphabétique
+/! Ils sont rangés par ordre alphabétique ?
 
 On peut voir que le diamètre le plus petit est à 5.651592cm de DBH. Ce
 qui ne devrait pas être le cas étant donné que le diamètre de
@@ -1002,9 +957,7 @@ P11 %>%
   distinct()
 ```
 
-On peut voir que par la suite il va
-
-Comme précédement nous allons identifier les espèces avec le plus et le
+Comme précédemment nous allons identifier les espèces avec le plus et le
 moins d'effectif.
 
 ```{r occurence P11}
@@ -1035,40 +988,11 @@ P11 %>%
   labs(title = "Occurence des 20 espèces les moins fréquentes sur la P11", x = "Espèces", y = "Occurence")
 ```
 
-
-### Nombre d'arbre (A REFAIRE)
-Il manque la création de la liste de 6 espèces dans Paracou_ALT
-
-
-```{r ALT}
-# ALT
-paracou_ALT <- read.csv("~/cours_r/Stage_M2/ALT_Paracou9ha_20240430.csv")
-
-## renomme le nom de colonne pour s'ajuster aux autres jeu de données
-paracou_ALT <- paracou_ALT %>% 
-  rename(scientificName = ScientificName)
-
-## on enlève les "_" de la colonnes scientificName
-paracou_ALT <- paracou_ALT %>%
-  mutate(scientificName = gsub("_", " ", scientificName))
-
-#selection des espèces d'intérêts
-##Création de la liste des espèces d'intérêt
-esp_6 <- c("Dicorynia guianensis", "Pradosia cochlearia", "Iryanthera sagotiana", "Qualea rosea", "Vouacapoua americana", "Jacaranda copaia")
-paracou_ALT <- paracou_ALT %>%
-  filter (scientificName %in% esp_6)
-```
-Je voudrais savoir le nombre d'espèce pour l'ensemble des autres parcelles dans la méthode 2.
-Il faut que j'ai dans les deux cas
-```{r méthode 2}
-
-```
-
 # VERIF TEST
 
 ```{r vérif année}
 #création de la colonne DBH
-paracou_J <- paracou_J %>%
+paracou_J <- Paracou_Juveniles %>%
   mutate(DBH = Circ/pi)
 
 #Sélection des années
@@ -1093,3 +1017,5 @@ for (i in 1:length(census_y)) {
 ```
 
 On remarque également la présence de outliers.
+
+# fin de script

@@ -4,25 +4,26 @@ author: "Maud"
 date: "2024-04-25"
 output: word_document
 ---
-Ce document fait suite à **Distribution diamétrique (INRAE)** dans lequel nous avons pu identifier 6 espèces avec des structures diamétriques remarquables. Pour rappel nous utilisons les données de ALT (9ha sur P16).
-L'objectif de ce script est de réaliser une carte des distributions diamétriques de : 
 
-1.	_Iryanthera sagotiana_ (ombre puis lumière)
-2.	_Pradosia cochlearia_ (ombre puis lumière)
-3.	_Dicorynia guianensis_ (tolérante à l'ombre (moins que Wacapou))
-4.	_Qualea rosea_ (tolérante à l'ombre)
-5.	_Vouacapoua americana_ (tolérante à l'ombre)
-6.	_Jacaranda copaia_ (peu tolérante à l'ombre)
+Ce document fait suite à **Distribution diamétrique (INRAE)** dans lequel nous avons pu identifier 6 espèces avec des structures diamétriques remarquables. Pour rappel nous utilisons les données de ALT (9ha sur P16). L'objectif de ce script est de réaliser une carte des distributions diamétriques de :
 
-#Mise en place
+1.  *Iryanthera sagotiana* (ombre puis lumière)
+2.  *Pradosia cochlearia* (ombre puis lumière)
+3.  *Dicorynia guianensis* (tolérante à l'ombre (moins que Wacapou))
+4.  *Qualea rosea* (tolérante à l'ombre)
+5.  *Vouacapoua americana* (tolérante à l'ombre)
+6.  *Jacaranda copaia* (peu tolérante à l'ombre)
+
+# Mise en place
+
 ```{r environnement de travail, include= F}
 setwd("~/cours_r/Stage_M2")
 ```
 
 ```{r packages, message = FALSE}
-library(tidyverse) #pour le langage et toutes les fonctions associées (ggplot2, dplyr...)
+library(tidyverse) # pour le langage et toutes les fonctions associées (ggplot2, dplyr...)
 library(sf)        #pour la manipulation des couches shapefiles
-library(ggspatial) #scale bars and north arrows
+library(ggspatial) # scale bars and north arrows
 ```
 
 ```{r importation des données, include = F}
@@ -45,6 +46,7 @@ paracou_ALT <- paracou_ALT %>%
 ```
 
 # Création des cartes
+
 Nous allons spatialisé nos observations (rendre nos données en shapefile).
 
 ```{r spatialisation}
@@ -55,6 +57,7 @@ paracou_spat <- paracou_ALT %>%
 #crs = st_crs(2972) sert à préciser le SCR pour mon shp.
 #st_crs(2972) = RFGR95 donc j'ai le droit de le changer si le crs de départ est WGS 84 / UTM zone 22N 
 ```
+
 Maintenant nous pouvons créer la carte des distributions.
 
 ```{r}
@@ -81,6 +84,5 @@ for(k in 1:length(esp_6)) {
 
 print(cartes_esp6)
 ```
-
 
 **Fin du script**

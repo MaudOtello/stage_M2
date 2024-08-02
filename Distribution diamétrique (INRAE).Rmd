@@ -6,7 +6,7 @@ date: "2024-04-30"
 
 Il existe une première version de ce document à la date du 4 Avril 2024 réalisé avec les données non épuré de ALT.
 
-Ce script est créé dans le but d'observer les distributions diamétriques de la liste INRAE sur les données ALT. C'est un inventaire exhaustive des arbres à un diamètre à hauteur de poitrine (DBH) à partir de 1cm. Il a été réalisé à partir de 2018 sur 3ans. Cela a pour but nous donner une première indication sur la tolérance à l'ombre. La deuxième partie sera réalisé sur les données de l'INRAE qui comprend 25 espèces d'intérêts.
+Ce script est créé dans le but d'observer les distributions diamétriques de la liste INRAE sur les données ALT. ALT est un inventaire exhaustive des arbres à un diamètre à hauteur de poitrine (DBH) à partir de 1cm. Il a été réalisé à partir de 2018 sur 3ans. Cela a pour but nous donner une première indication sur la tolérance à l'ombre. La deuxième partie sera réalisé sur les données de l'INRAE qui comprend 25 espèces d'intérêts.
 
 # Mise en place
 
@@ -107,16 +107,16 @@ INRAE_2 <- setdiff(INRAE, not)
 
 # Cumulative distribution function
 
-La cumulative distribution est une fonction de probabilité, je ne sais plus tout s'est effacé.
+La *cumulative distribution function* est une fonction qui donne la probabilité pour l'espèce d'obtenir un diamètre plus grand que le diamètre considéré. Cette probabilité est calculée après avoir trié dans l'ordre croissant les DBH.
 
 ```{r cdf}
 #Création de la liste
 INRAE_cdf <- list()
 
 #Création des courbes
-for(k in 1:length (INRAE_2)) {
+for(k in 1:length (INRAE)) {
   plot.cdf <- paracou_ALT %>%
-    filter(scientificName == INRAE_2[[k]]) %>%
+    filter(scientificName == INRAE[[k]]) %>%
     select(DBH) %>%
     na.omit() %>%
     mutate(DBH = sort(DBH),
@@ -124,7 +124,7 @@ for(k in 1:length (INRAE_2)) {
          cdf = 1 - (ord / max(ord))) %>%
     ggplot(aes(x = log(DBH), y = cdf)) +
     geom_point() +
-    labs(x = "log(DBH)", y = "Probabilité", title = paste("Cumulative distribution de", INRAE_2[k]))
+    labs(x = "log(DBH)", y = "Probabilité", title = paste("Cumulative distribution de", INRAE[k]))
 #ajout du graphique à la liste  
   INRAE_cdf[[k]] <- plot.cdf
 }
@@ -133,4 +133,6 @@ for(k in 1:length (INRAE_2)) {
 print(INRAE_cdf)
 ```
 
-fin du document
+L'analyse a été réaliser après tricotage de ce script.
+
+Fin de script
